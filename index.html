@@ -515,34 +515,63 @@ table{width:100%;border-collapse:collapse;text-align:left}
 th,td{padding:7px 5px;border-bottom:1px solid #334346}
 #eintrag{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:10px 0}
 #eintrag input{min-width:0;max-width:100%}
+#board-wrap{position:relative;border:2px solid transparent;border-radius:8px}
+#effekte{position:absolute;inset:4px;width:calc(100% - 8px);height:calc(100% - 8px);pointer-events:none;overflow:visible}
+#raum{margin:0 0 6px;color:#bfcbc4;font-size:.87rem}
+.cell.foe{background:var(--monster,#ad454a);padding-bottom:9px}
+.cell.trap{color:var(--trap,#b77957);background:#374044}
+.cell.danger::after{content:"";position:absolute;inset:0;border:2px solid #ffb560;border-radius:2px;pointer-events:none;animation:warn .45s alternate infinite}
+.cell.frozen{box-shadow:inset 0 0 0 2px #adf5ff}
+#board-wrap.vampirrausch{border-color:#ff545a;animation:vamp 1s ease-in-out infinite alternate}
+#vampir{display:grid;gap:5px;margin:8px 0}
+#vamp-leiste{width:100%;accent-color:#fa6e75}
+#gift{color:#bcf582}
+#angriff{display:block;width:100%;margin-top:8px}
+.effekt{fill:none;stroke:#ffd989;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;animation:ausblenden .46s ease-out forwards}
+.effekt.rope{stroke:#ffd0a2;stroke-dasharray:1;animation:leine .45s ease-out forwards}
+.effekt.ice{stroke:#c4fcff;stroke-dasharray:1;animation:leine .42s ease-out forwards}
+.effekt.shock,.effekt.ring{stroke:#c1e5ff}
+.effekt.arrow,.effekt.slash,.effekt.shock[pathLength]{stroke-dasharray:1;animation:leine .35s ease-out forwards}
+.effekt.quake{stroke:#ffc46c;stroke-width:3.8;animation:ausblenden .68s ease-out forwards}
+@keyframes leine{0%{stroke-dashoffset:1;opacity:1}42%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+@keyframes ausblenden{0%{opacity:1;stroke-width:3.6}100%{opacity:0;stroke-width:1}}
+@keyframes vamp{from{box-shadow:0 0 5px #ad2227}to{box-shadow:0 0 20px #ff545a}}
+@keyframes warn{from{opacity:.55}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){#board-wrap.vampirrausch,.cell.danger::after{animation:none}.effekt{animation-duration:.15s}}
 </style>
 <main>
 <header><div><h1>Herzkammern</h1><p>Besiege die Monster und erreiche das violette Tor.</p></div></header>
 <div class="setup"><label for="modus">Schwierigkeit</label>
-<select id="modus"><option value="easy">Leicht</option><option selected value="normal">Normal</option><option value="hard">Schwer</option></select>
+<select id="modus"><option value="easy">Leicht</option><option selected value="normal">Normal</option><option value="hard">Schwer</option><option value="brutal">Sehr schwer</option></select>
 <button id="neu" type="button">Spiel starten</button></div>
 <p id="regeln"></p>
 <div class="layout">
   <section class="panel" aria-label="Spielfeld und Steuerung">
     <div class="hud"><span id="level"></span><span id="leben"></span><span id="punkte"></span></div>
-    <div id="board" aria-label="Spielfeld, 10 mal 10"></div>
+    <p id="raum"></p>
+    <div id="board-wrap"><div id="board" aria-label="Spielfeld, 10 mal 10"></div><svg id="effekte" viewBox="0 0 100 100" aria-hidden="true"></svg></div>
     <div class="controls">
       <button data-dir="0" aria-label="Nach oben">↑</button><button data-dir="1" aria-label="Nach links">←</button>
       <button data-dir="2" aria-label="Nach unten">↓</button><button data-dir="3" aria-label="Nach rechts">→</button>
     </div>
+    <button id="angriff" type="button">Angreifen</button>
+    <p id="gift" hidden>Vergiftet</p>
     <p id="status" role="status"></p>
   </section>
   <aside class="panel">
     <h2>Inventar</h2>
     <p id="waffe"></p>
+    <div id="vampir" hidden><label for="vamp-leiste">Vampirrausch</label><progress id="vamp-leiste" max="4" value="0"></progress><span id="vamp-status"></span><button id="vamp-aktiv" type="button">V · Rausch starten</button></div>
+    <button id="beben" type="button" hidden>R · Erdbeben</button>
     <div id="slots" aria-label="Inventar mit drei Plätzen"></div>
     <section id="loot" hidden aria-label="Kistenbeute">
       <h2>Kistenbeute</h2><p id="beute-hinweis"></p><div id="angebote"></div>
       <button id="liegen">Liegen lassen</button>
     </section>
     <details open><summary>Steuerung</summary>
-      <p>Pfeiltasten oder WASD zum Laufen. Leertaste greift ein erreichbares Monster an. Mit 1–3 wählst du einen Inventarplatz. H trinkt einen Heiltrank. An der Kiste wählst du mit 1–3 die Beute und bei vollem Inventar anschließend den Platz.</p>
-      <p>Du kannst auch Felder, Pfeile und Inventar antippen. Monster treffen beim ersten Kontakt sofort für ½ Herz, danach frühestens alle 5 Sekunden.</p>
+      <p>WASD oder Pfeiltasten zum Laufen und Ausrichten. Leertaste oder Angreifen trifft das nächste erreichbare Ziel. 1–3 wählt Beute oder Inventar, H trinkt einen Heiltrank, G ein Gegengift.</p>
+      <p>V startet den Vampirrausch. R löst mit ausgerüstetem Kolossschwert das Erdbeben in Blickrichtung aus. Orange markierte Felder zeigen drohende Angriffe oder Fallen.</p>
+      <p>! Jäger · ↩ Hakenwächter · × Giftkriecher · ▲ Brecher · ✦ Splitterwerfer · ■ Koloss</p>
     </details>
   </aside>
 </div>
@@ -580,243 +609,664 @@ host.addEventListener("arcadespielwechsel", () => {
   }
   if (!host.hidden && online) loadOnlineRank();
 });
-const dirs = [[0,-1],[-1,0],[0,1],[1,0]];
+const dirs=[[0,-1],[-1,0],[0,1],[1,0]];
+// Lebenswerte in halben Herzen, Punktestand in ganzen Punkten.
 const modes={
-  easy:{name:"Leicht",hp:24,enemy:-1,rate:1,bonus:2,heal:6},
-  normal:{name:"Normal",hp:20,enemy:0,rate:2,bonus:4,heal:6},
-  hard:{name:"Schwer",hp:10,enemy:1,rate:4,bonus:6,heal:2}
+  easy:{name:"Leicht",hp:24,enemy:-1,bonus:1,heal:6,speed:1.15,hit:0,wait:5000},
+  normal:{name:"Normal",hp:20,enemy:0,bonus:2,heal:6,speed:1,hit:0,wait:5000},
+  hard:{name:"Schwer",hp:10,enemy:1,bonus:3,heal:2,speed:.88,hit:0,wait:5000},
+  brutal:{name:"Sehr schwer",hp:10,enemy:1,bonus:1,heal:0,speed:.68,hit:1,wait:3000}
 };
-const items = {
+const items={
+  sword:{name:"Schwert",level:1,damage:2,range:1,fx:"slash"},
+  shield:{name:"Schild",level:1,health:2},
+  bow:{name:"Kurzbogen",level:1,damage:1,range:3,fx:"arrow",delay:550},
+  pull:{name:"Zughaken",level:5,damage:1,range:3,fx:"rope",shift:-1,delay:500},
+  push:{name:"Stoßstab",level:6,damage:1,range:2,fx:"shock",shift:1,delay:500},
+  spear:{name:"Speer",level:7,damage:1,range:2,fx:"slash"},
+  long:{name:"Langbogen",level:8,damage:1,range:5,fx:"arrow",delay:600},
+  steel:{name:"Stahlschwert",level:9,damage:3,range:1,fx:"slash"},
+  breaker:{name:"Schildbrecher",level:10,damage:2,range:1,fx:"slash"},
+  axe:{name:"Wurfaxt",level:11,damage:3,range:3,fx:"arrow",delay:2000},
+  vamp:{name:"Vampirschwert",level:12,damage:1,range:1,fx:"slash"},
+  runic:{name:"Runenschild",level:13,health:2},
+  frost:{name:"Frostbogen",level:14,damage:1,range:5,fx:"ice",delay:640},
+  scythe:{name:"Sichelklinge",level:15,damage:2,range:1,fx:"slash",delay:650},
+  blade:{name:"Klingenstab",level:17,damage:1,range:2,fx:"ring",delay:850},
+  colossus:{name:"Kolossschwert",level:20,damage:2,range:1,fx:"slash",delay:700},
   potion:{name:"Heiltrank"},
-  sword:{name:"Schwert",info:"1 ♥ Schaden",damage:2,range:1},
-  shield:{name:"Schild",info:"+1 ♥ maximales Leben"},
-  bow:{name:"Kurzbogen",info:"½ ♥ Schaden, 3 Felder",damage:1,range:3},
-  long:{name:"Langbogen",info:"½ ♥ Schaden, 5 Felder",damage:1,range:5},
-  push:{name:"Stoßstab",info:"½ ♥ Schaden, 2 Felder, stößt weg",damage:1,range:2,shift:1},
-  pull:{name:"Zughaken",info:"½ ♥ Schaden, 3 Felder, zieht heran",damage:1,range:3,shift:-1}
+  antidote:{name:"Gegengift"}
 };
-const fist={name:"Faust",damage:1,range:1};
-const heart = n => String(n/2).replace(".",",");
-const distance = (a,b) => Math.abs(a%10-b%10)+Math.abs(Math.floor(a/10)-Math.floor(b/10));
-const inside = (x,y) => x>=0&&x<10&&y>=0&&y<10;
-const pick = list => list[Math.floor(Math.random()*list.length)];
-const cells = Array.from({length:100},(_,index)=>{
+const types={
+  hunter:{name:"Jäger",icon:"!",color:"#ad454a",hp:0,damage:1,score:1,level:1},
+  hook:{name:"Hakenwächter",icon:"↩",color:"#7f4d9e",hp:1,damage:1,score:2,level:2},
+  poison:{name:"Giftkriecher",icon:"×",color:"#607f32",hp:0,damage:1,score:2,level:3},
+  brute:{name:"Brecher",icon:"▲",color:"#9c5b27",hp:2,damage:3,score:2,level:4},
+  thrower:{name:"Splitterwerfer",icon:"✦",color:"#25737f",hp:1,damage:2,score:2,level:5},
+  giant:{name:"Koloss",icon:"■",color:"#4f639e",hp:4,damage:2,score:3,level:6}
+};
+const hazards={
+  spike:{name:"Stachelplatte",icon:"♢",color:"#b77957"},
+  arrow:{name:"Pfeildüse",icon:"⇢",color:"#c3a26d"},
+  crumb:{name:"Brüchiger Boden",icon:"⌁",color:"#85999c"}
+};
+const fists={key:"fist",name:"Faust",damage:1,range:1,fx:"slash",rank:1};
+const has=key=>inventory.some(item=>item?.key===key);
+const heart=n=>String(n/2).replace(".",",");
+const points=n=>String(n);
+const xOf=pos=>pos%10;
+const yOf=pos=>Math.floor(pos/10);
+const distance=(a,b)=>Math.abs(xOf(a)-xOf(b))+Math.abs(yOf(a)-yOf(b));
+const inside=(x,y)=>x>=0&&x<10&&y>=0&&y<10;
+const pick=list=>list[Math.floor(Math.random()*list.length)];
+const cells=Array.from({length:100},(_,index)=>{
   const cell=document.createElement("button");
   cell.type="button"; cell.tabIndex=-1; cell.onclick=()=>tap(index);
   $("board").append(cell);
   return cell;
 });
-let level, score, hp, player, exit, chest, walls, monsters, inventory, active, loot, message, ended;
-let nextMove=0,nextAttack=0,inventoryView="",lootView="";
-let modeKey="normal",mode=modes.normal,playing=false,saved=false,saving=false,runId=null;
-const rankKey="herzkammern-rang-v1";
-const online=konfiguriert && location.protocol==="https:";
-const API=online ? SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/herzkammern_scores" : "";
+let level,score,hp,player,exit,walls,monsters,inventory,active,loot,message;
+let chestMap,traps,enemyQueue,layout,poisonTicks,face;
+let nextMove,nextAttack,nextWave,pushAt,pullAt,frostAt,wardAt,vampCharge,vampUntil,quakeUsed;
+let inventoryView="",lootView="",hudState="";
+let modeKey="normal",mode=modes.normal,playing=false,ended=false,saved=false,saving=false,runId=null;
+const rankKey="herzkammern-rang-v2";
+const online=konfiguriert&&location.protocol==="https:";
+const API=online?SUPABASE_URL.replace(/\/+$/,"")+"/rest/v1/herzkammern_scores_v2":"";
 let rankings=[];
 if(!online){try{rankings=JSON.parse(localStorage.getItem(rankKey)||"[]");}catch{}}
 if(!Array.isArray(rankings))rankings=[];
-const points=n=>String(n/4).replace(".",",");
-const maxHp=()=>mode.hp+(inventory.includes("shield")?2:0);
-const itemText=key=>key==="potion"?"Heiltrank · +"+heart(mode.heal)+" ♥":items[key].name+" · "+items[key].info;
-const weapon=()=>items[inventory[active]]?.damage?items[inventory[active]]:fist;
 const enemyAt=pos=>monsters.find(enemy=>enemy.pos===pos);
-
-function neighbors(pos){
-  const x=pos%10,y=Math.floor(pos/10);
-  return dirs.map(([dx,dy])=>[x+dx,y+dy]).filter(([nx,ny])=>inside(nx,ny)).map(([nx,ny])=>ny*10+nx);
+function maxHp(){
+  const armor=inventory.filter(item=>item&&items[item.key].health);
+  return mode.hp+Math.max(0,...armor.map(item=>items[item.key].health+item.rank-1));
 }
-function paths(from, blocked){
-  const queue=[from], depths=new Map([[from,0]]), first=new Map();
+function weapon(){
+  const item=inventory[active], def=items[item?.key];
+  if(!def?.damage)return fists;
+  const fixed=["vamp","blade","colossus"].includes(item.key);
+  return {...def,...item,damage:def.damage+(fixed?0:item.rank-1)};
+}
+function itemText(item){
+  const {key,rank}=item,def=items[key];
+  if(key==="potion")return "Heiltrank · +"+heart(mode.heal)+" ♥";
+  if(key==="antidote")return "Gegengift · beendet Gift";
+  const roman=["","I","II","III","IV"][rank];
+  if(def.health)return def.name+" "+roman+" · +"+heart(def.health+rank-1)+" ♥"+(key==="runic"?" · blockt alle 12 s":"");
+  const damage=["vamp","blade","colossus"].includes(key)?def.damage:def.damage+rank-1;
+  const info={
+    frost:" · "+(1.1+.45*(rank-1)).toFixed(2).replace(".",",")+" s Frost",
+    push:" · Stoß alle 2,5 s",pull:" · Zug alle 2,5 s",breaker:" · +1 ♥ gegen Kolosse",
+    vamp:" · V nach 4 Treffern",blade:" · trifft im Umkreis von 2 Feldern",colossus:" · R: Erdbeben",
+    scythe:" · trifft ein zweites Nahziel",axe:" · ein Wurf alle 2 s"
+  };
+  return def.name+" "+roman+" · "+heart(damage)+" ♥ · "+def.range+" F"+(info[key]||"");
+}
+function nextPos(from,dx,dy){
+  const x=xOf(from)+dx,y=yOf(from)+dy;
+  return inside(x,y)?y*10+x:null;
+}
+function neighbors(pos){
+  return dirs.map(dir=>nextPos(pos,...dir)).filter(next=>next!==null);
+}
+function paths(from,blocked){
+  const queue=[from],depths=new Map([[from,0]]),first=new Map();
   for(let i=0;i<queue.length;i++){
     const pos=queue[i];
     for(const next of neighbors(pos)){
       if(blocked(next)||depths.has(next))continue;
       depths.set(next,depths.get(pos)+1);
-      first.set(next,pos===from?next:first.get(pos)); queue.push(next);
+      first.set(next,pos===from?next:first.get(pos));
+      queue.push(next);
     }
   }
   return {depths,first};
 }
-function newLevel(){
-  player=90+Math.floor(Math.random()*10); walls=new Set();
-  const candidates=Array.from({length:100},(_,i)=>i).filter(i=>distance(i,player)>1);
-  const count=18+Math.floor(Math.random()*7);
-  while(walls.size<count&&candidates.length){
-    const nearby=candidates.filter(pos=>neighbors(pos).some(next=>walls.has(next)));
-    const pos=pick(nearby.length&&Math.random()<.7?nearby:candidates);
-    candidates.splice(candidates.indexOf(pos),1);
-    walls.add(pos);
-    if(paths(player,n=>walls.has(n)).depths.size!==100-walls.size) walls.delete(pos);
+function ray(from,dx,dy,length){
+  const cells=[];
+  for(let i=1;i<=length;i++){
+    const pos=nextPos(from,dx*i,dy*i);
+    if(pos===null||walls.has(pos))break;
+    cells.push(pos);
   }
-  const {depths}=paths(player,n=>walls.has(n));
-  const open=[...depths.keys()].filter(n=>n!==player);
-  exit=open.reduce((a,b)=>depths.get(b)>depths.get(a)?b:a);
-  chest=pick(open.filter(n=>depths.get(n)>=3&&depths.get(n)<=5&&n!==exit));
-  const spawns=open.filter(n=>n!==chest&&n!==exit&&depths.get(n)>=6);
-  const firstMove=gameNow()+600;
-  monsters=Array.from({length:Math.min(5,3+Math.floor((level-1)/2))},(_,i)=>{
-    const index=Math.floor(Math.random()*spawns.length);
-    const [pos]=spawns.splice(index,1);
-    return {pos,hp:Math.max(1,Math.min(6,2+i%3+Math.floor((level-1)/2))+mode.enemy),strikeAt:0,moveAt:firstMove};
-  });
+  return cells;
 }
-function restart(start=false){
-  if(saving)return;
-  modeKey=$("modus").value||"normal";mode=modes[modeKey];playing=start;saved=false;
-  runId=online&&start?crypto.randomUUID():null;
-  $("rangstatus").textContent="";
-  $("eintrag").hidden=true;
-  $("neu").textContent=start?"Neu starten":"Spiel starten";
-  level=1; score=0; hp=mode.hp; inventory=[null,null,null]; active=-1; loot=null; ended=false;
-  nextMove=0;nextAttack=0;
-  message=start?"Finde die Kiste und rüste dich aus.":"Wähle einen Modus und starte das Spiel.";
-  newLevel(); draw();
+function axis(a,b){
+  if(a===b||xOf(a)!==xOf(b)&&yOf(a)!==yOf(b))return null;
+  return [Math.sign(xOf(b)-xOf(a)),Math.sign(yOf(b)-yOf(a))];
 }
 function sight(a,b){
-  const ax=a%10,ay=Math.floor(a/10),dx=b%10-ax,dy=Math.floor(b/10)-ay;
-  const steps=Math.max(Math.abs(dx),Math.abs(dy));
-  let x=ax,y=ay;
+  const dx=xOf(b)-xOf(a),dy=yOf(b)-yOf(a),steps=Math.max(Math.abs(dx),Math.abs(dy));
+  let x=xOf(a),y=yOf(a);
   for(let i=1;i<=steps;i++){
-    const nx=Math.round(ax+dx*i/steps),ny=Math.round(ay+dy*i/steps);
-    if(walls.has(ny*10+nx))return false;
-    if(nx!==x&&ny!==y&&walls.has(y*10+nx)&&walls.has(ny*10+x))return false;
+    const nx=Math.round(xOf(a)+dx*i/steps),ny=Math.round(yOf(a)+dy*i/steps);
+    if(walls.has(ny*10+nx)||nx!==x&&ny!==y&&walls.has(y*10+nx)&&walls.has(ny*10+x))return false;
     x=nx;y=ny;
   }
   return true;
 }
-function monsterHits(now){
-  let hits=0;
-  for(const monster of monsters){
-    if(distance(monster.pos,player)!==1||now<monster.strikeAt)continue;
-    monster.strikeAt=now+5000;
-    hits+=1;
-    hp-=1;
-    if(hp===0){ended=true;playing=false;$("eintrag").hidden=false;break;}
+function wallCandidates(kind){
+  const rect=(x,y,w,h)=>Array.from({length:w*h},(_,i)=>(y+Math.floor(i/w))*10+x+i%w);
+  if(kind==="Pfeilerhalle")return [[2,2],[6,2],[2,5],[6,5]].flatMap(([x,y])=>rect(x,y,2,2));
+  if(kind==="Ringgang")return [...rect(3,3,4,1),...rect(3,6,4,1),...rect(3,4,1,2),...rect(6,4,1,2)];
+  const door=2+Math.floor(Math.random()*6);
+  return Array.from({length:10},(_,x)=>40+x).filter(pos=>xOf(pos)!==door&&xOf(pos)!==Math.min(9,door+1));
+}
+function newLevel(){
+  player=90+Math.floor(Math.random()*10);
+  face=dirs[0];walls=new Set();monsters=[];traps=new Map();chestMap=new Map();poisonTicks=[];
+  quakeUsed=false;
+  $("effekte").replaceChildren();
+  layout=pick(["Pfeilerhalle","Ringgang","Doppelkammer"]);
+  const spread=Array.from({length:100},(_,i)=>i);
+  const transpose=layout!=="Doppelkammer"&&Math.random()<.5;
+  const template=wallCandidates(layout).map(pos=>transpose?xOf(pos)*10+yOf(pos):pos);
+  for(let index=spread.length-1;index>0;index--){
+    const swap=Math.floor(Math.random()*(index+1));
+    [spread[index],spread[swap]]=[spread[swap],spread[index]];
   }
-  if(hits){
-    message=hits===1?"Ein Monster trifft dich für ½ ♥.":"Monster treffen dich für "+heart(hits)+" ♥.";
-    if(ended){loot=null;message+=" Spiel vorbei.";}
+  const target=layout==="Doppelkammer"?13:15+Math.floor(Math.random()*5);
+  for(const pos of [...new Set([...template,...spread])]){
+    if(walls.size>=target)break;
+    if(distance(pos,player)<2)continue;
+    walls.add(pos);
+    if(paths(player,n=>walls.has(n)).depths.size!==100-walls.size)walls.delete(pos);
   }
-  return hits>0;
+  const {depths}=paths(player,n=>walls.has(n));
+  const open=[...depths.keys()].slice(1);
+  exit=open.reduce((a,b)=>depths.get(b)>depths.get(a)?b:a);
+  const chest=pick(open.filter(pos=>depths.get(pos)>=2&&depths.get(pos)<=4&&pos!==exit));
+  chestMap.set(chest,"gear");
+  if(level>=2){
+    const stash=pick(open.filter(pos=>pos!==exit&&depths.get(pos)>=7&&distance(pos,exit)>1));
+    if(stash!==undefined)chestMap.set(stash,"stash");
+  }
+  const trapPool=open.filter(pos=>depths.get(pos)>=3&&pos!==exit&&!chestMap.has(pos));
+  const stash=[...chestMap].find(([,type])=>type==="stash")?.[0];
+  const byStash=trapPool.filter(pos=>stash!==undefined&&distance(pos,stash)===1);
+  const count=Math.min(level,20);
+  for(let i=0;i<count&&trapPool.length;i++){
+    const pos=i===0&&byStash.length?pick(byStash):pick(trapPool);
+    trapPool.splice(trapPool.indexOf(pos),1);
+    const type=pick(level>=7?["spike","arrow","crumb"]:level>=4?["spike","arrow"]:["spike"]);
+    traps.set(pos,{type,ready:0,warning:null,line:null,vertical:Math.random()<.5});
+  }
+  const available=Object.keys(types).filter(key=>types[key].level<=level);
+  const introduced=available.find(key=>types[key].level===level);
+  enemyQueue=Array.from({length:level+2},(_,i)=>i===0&&introduced?introduced:pick(available));
+  nextWave=gameNow()+900;
+  spawn(Math.min(enemyQueue.length,7),gameNow());
+}
+function spawn(count,now){
+  const {depths}=paths(player,pos=>walls.has(pos));
+  const spots=[...depths.keys()].filter(pos=>pos!==player&&pos!==exit&&!enemyAt(pos)&&!chestMap.has(pos)&&!traps.has(pos));
+  for(let i=0;i<count&&spots.length&&enemyQueue.length;i++){
+    const options=spots.filter(pos=>depths.get(pos)>=4&&distance(pos,player)>=3);
+    if(!options.length&&monsters.length)break;
+    const pos=options.length?pick(options):spots.reduce((a,b)=>depths.get(b)>depths.get(a)?b:a);
+    spots.splice(spots.indexOf(pos),1);
+    const key=enemyQueue.shift(),type=types[key];
+    monsters.push({pos,key,hp:Math.max(1,2+Math.floor((level-1)/2)+type.hp+mode.enemy),
+      next:now+650,hitAt:now+650,frozen:0,warning:null});
+  }
+}
+function restart(start=false){
+  if(saving)return;
+  modeKey=$("modus").value||"normal";mode=modes[modeKey];playing=start;saved=false;ended=false;
+  runId=online&&start?crypto.randomUUID():null;
+  $("eintrag").hidden=true;$("rangstatus").textContent="";
+  $("neu").textContent=start?"Neu starten":"Spiel starten";
+  level=1;score=0;hp=mode.hp;inventory=[null,null,null];active=-1;loot=null;
+  nextMove=nextAttack=pushAt=pullAt=frostAt=wardAt=vampCharge=vampUntil=0;
+  message=start?"Finde die Ausrüstungskiste.":"Wähle einen Modus und starte das Spiel.";
+  newLevel();draw();
+}
+function log(text){message=text;}
+function hurt(amount,reason,now,direct=false){
+  if(!playing)return;
+  if(direct&&has("runic")&&now>=wardAt){
+    wardAt=now+12000;log("Das Runenschild blockt "+reason+".");return false;
+  }
+  const loss=Math.min(hp,amount);
+  hp-=loss;log(reason+" · −"+heart(loss)+" ♥");
+  if(hp===0){
+    ended=true;playing=false;loot=null;
+    $("eintrag").hidden=false;message+=" · Spiel vorbei.";
+  }
+  return loss>0;
+}
+function heal(amount){
+  if(modeKey==="brutal")return 0;
+  const gain=Math.max(0,Math.min(amount,maxHp()-hp));
+  hp+=gain;return gain;
+}
+function damageEnemy(enemy,amount){
+  if(!monsters.includes(enemy))return;
+  enemy.hp-=amount;
+  if(enemy.hp>0)return;
+  monsters=monsters.filter(other=>other!==enemy);
+  score+=modeKey==="brutal"?1:modeKey==="easy"?Math.max(1,types[enemy.key].score-1):types[enemy.key].score;
+  if(!monsters.length&&enemyQueue.length)nextWave=gameNow()+900;
+}
+function tryShift(enemy,dx,dy,now){
+  const pos=nextPos(enemy.pos,dx,dy);
+  if(enemy.key==="giant"||pos===null||pos===player||walls.has(pos)||enemyAt(pos))return false;
+  enemy.pos=pos;
+  enemy.next=Math.max(enemy.next,now+400);
+  enemy.warning=null;
+  return true;
+}
+function startEnemyAttack(enemy,now){
+  if(enemy.warning||enemy.frozen>now||enemy.hitAt>now)return false;
+  const type=types[enemy.key],gap=distance(enemy.pos,player),dir=axis(enemy.pos,player);
+  if(enemy.key==="brute"&&gap===1){
+    enemy.warning={kind:"blow",cells:[player],at:now+900};
+  }else if((enemy.key==="hook"||enemy.key==="thrower")&&dir){
+    const cells=ray(enemy.pos,...dir,enemy.key==="hook"?5:4);
+    if(cells.includes(player))enemy.warning={kind:enemy.key,cells,at:now+950};
+  }
+  if(enemy.warning){
+    enemy.hitAt=enemy.warning.at+mode.wait;
+    return true;
+  }
+  if(gap!==1)return false;
+  enemy.hitAt=now+mode.wait;
+  const hit=hurt(type.damage+mode.hit,type.name,now,true);
+  if(hit&&enemy.key==="poison"&&playing)poisonTicks=[now+2000,now+4000];
+  return true;
+}
+function resolveEnemy(enemy,warning,now){
+  const order=warning.cells.indexOf(player);
+  if(warning.kind==="hook"){
+    if(order<0)return;
+    fx("rope",enemy.pos,player);
+    for(let i=0;i<2;i++){
+      const dir=axis(player,enemy.pos);
+      if(!dir||distance(player,enemy.pos)<=1)break;
+      const pos=nextPos(player,...dir);
+      if(pos===null||walls.has(pos)||enemyAt(pos))break;
+      player=pos;
+    }
+    log("Der Hakenwächter zieht dich heran.");
+    return;
+  }
+  if(warning.kind==="thrower")fx("arrow",enemy.pos,warning.cells.at(-1));
+  if(order>=0)hurt(types[enemy.key].damage+mode.hit,types[enemy.key].name,now,true);
+}
+function contact(now){
+  for(const enemy of monsters){
+    if(!playing)break;
+    if(distance(enemy.pos,player)===1)startEnemyAttack(enemy,now);
+  }
+}
+function updateHazards(now){
+  let changed=false;
+  for(const [pos,trap] of traps){
+    if(!playing)break;
+    const occupied=player===pos||Boolean(enemyAt(pos));
+    if(trap.warning!==null&&now>=trap.warning){
+      changed=true;
+      trap.warning=null;
+      trap.ready=now+Math.max(2400,4500-level*55);
+      const line=trap.line;
+      trap.line=null;
+      if(trap.type==="crumb"){
+        if(occupied)continue;
+        walls.add(pos);
+        if(paths(player,p=>walls.has(p)).depths.size===100-walls.size)traps.delete(pos);
+        else walls.delete(pos);
+        continue;
+      }
+      const damage=trap.type==="spike"?2:1;
+      for(const enemy of [...monsters])if(line.includes(enemy.pos))damageEnemy(enemy,damage);
+      if(line.includes(player))hurt(damage,hazards[trap.type].name,now);
+      fx(trap.type==="arrow"?"arrow":"shock",line[0],line.at(-1));
+    }else if(trap.warning===null&&now>=trap.ready&&occupied){
+      changed=true;
+      trap.warning=now+(trap.type==="crumb"?1250:850);
+      const dir=trap.vertical?[0,1]:[1,0];
+      trap.line=trap.type==="arrow"?
+        [...ray(pos,-dir[0],-dir[1],9).reverse(),pos,...ray(pos,...dir,9)]:[pos];
+    }
+  }
+  return changed;
 }
 function updateMonsters(){
   if(host.hidden||!playing)return;
   const now=gameNow();
-  let moved=false;
-  for(const monster of monsters){
-    if(now<monster.moveAt)continue;
-    monster.moveAt=now+600;
-    const gap=distance(monster.pos,player);
-    if(gap===1||gap>6||!sight(monster.pos,player))continue;
-    const next=paths(monster.pos,pos=>walls.has(pos)||Boolean(enemyAt(pos))).first.get(player);
-    if(next!==undefined&&next!==player){monster.pos=next;moved=true;}
+  const wasRaging=vampUntil>0;
+  if(wasRaging&&now>=vampUntil){vampUntil=0;log("Der Vampirrausch endet.");}
+  let changed=wasRaging!==Boolean(vampUntil);
+  for(const enemy of monsters){
+    if(!playing)break;
+    if(enemy.warning&&now>=enemy.warning.at){
+      const warning=enemy.warning;enemy.warning=null;
+      resolveEnemy(enemy,warning,now);changed=true;continue;
+    }
+    if(now<enemy.frozen||enemy.warning)continue;
+    if(startEnemyAttack(enemy,now)){changed=true;continue;}
+    if(now<enemy.next||distance(enemy.pos,player)===1)continue;
+    const base=Math.max(285,700-16*(level-1));
+    enemy.next=now+base*mode.speed*(enemy.key==="giant"?1.35:1);
+    if(distance(enemy.pos,player)>7||!sight(enemy.pos,player))continue;
+    const next=paths(enemy.pos,pos=>walls.has(pos)||Boolean(enemyAt(pos))).first.get(player);
+    if(next!==undefined&&next!==player){enemy.pos=next;startEnemyAttack(enemy,now);changed=true;}
   }
-  if(monsterHits(now)||moved)draw();
+  if(playing&&poisonTicks.length&&now>=poisonTicks[0]){
+    poisonTicks.shift();hurt(1,"Gift",now);changed=true;
+  }
+  if(playing&&updateHazards(now))changed=true;
+  if(playing&&enemyQueue.length&&monsters.length<7&&now>=nextWave){
+    const before=monsters.length;
+    spawn(Math.min(2,7-before),now);
+    nextWave=now+1600;
+    if(monsters.length>before){log("Verstärkung kommt.");changed=true;}
+  }
+  if(changed)draw();else drawAbilities(now);
 }
 function canHit(enemy,used){
-  const d=distance(player,enemy.pos), vertical=player%10===enemy.pos%10;
-  const aligned=vertical||Math.floor(player/10)===Math.floor(enemy.pos/10);
-  if(d>used.range||!aligned||!sight(player,enemy.pos))return false;
-  const delta=(vertical?10:1)*Math.sign(enemy.pos-player);
-  for(let pos=player+delta;pos!==enemy.pos;pos+=delta){
-    if(enemyAt(pos))return false;
-  }
-  return true;
+  const gap=distance(player,enemy.pos);
+  if(gap>used.range)return false;
+  if(used.key==="blade")return sight(player,enemy.pos);
+  const dir=axis(player,enemy.pos);
+  if(!dir)return false;
+  const line=ray(player,...dir,gap);
+  return line.includes(enemy.pos)&&!line.slice(0,-1).some(pos=>enemyAt(pos));
 }
 function attack(enemy){
-  const now=gameNow();
+  if(!playing||loot)return;
+  const now=gameNow(),used=weapon();
   if(now<nextAttack)return;
-  const used=weapon();
-  if(!canHit(enemy,used)){
-    message="Ziel außer Reichweite oder Schusslinie blockiert.";draw();return;
+  if(!enemy||!canHit(enemy,used)){log("Kein Gegner in Reichweite.");draw();return;}
+  const target=enemy.pos;
+  const targets=used.key==="blade"?monsters.filter(other=>canHit(other,used)):[enemy];
+  if(used.key==="scythe"){
+    const second=monsters.find(other=>other!==enemy&&distance(player,other.pos)===1);
+    if(second)targets.push(second);
   }
-  nextAttack=now+300;
-  const damage=Math.min(enemy.hp,used.damage);
-  enemy.hp-=damage;score+=damage*mode.rate;
-  message=used.name+" trifft für "+heart(damage)+" ♥.";
-  if(!enemy.hp){
-    monsters=monsters.filter(item=>item!==enemy);
-    if(!monsters.length)message+=" Das Tor ist offen.";
-  }else if(used.shift){
-    const dx=Math.sign(enemy.pos%10-player%10)*used.shift;
-    const dy=Math.sign(Math.floor(enemy.pos/10)-Math.floor(player/10))*used.shift;
-    const x=enemy.pos%10+dx,y=Math.floor(enemy.pos/10)+dy,next=y*10+x;
-    if(inside(x,y)&&!walls.has(next)&&next!==player&&!enemyAt(next)){
-      enemy.pos=next;enemy.moveAt=now+750;
-      message+=used.shift>0?" Das Monster wird weggestoßen.":" Das Monster wird herangezogen.";
+  const direction=axis(player,target);
+  if(direction)face=dirs.find(dir=>dir[0]===direction[0]&&dir[1]===direction[1]);
+  nextAttack=now+(used.delay||470);
+  const bonus=vampUntil>now?1:0;
+  for(const targetEnemy of targets){
+    const damage=(used.key==="scythe"&&targetEnemy!==enemy?1:used.damage)
+      +(used.key==="breaker"&&targetEnemy.key==="giant"?2:0)+bonus;
+    damageEnemy(targetEnemy,damage);
+  }
+  log(used.name+" · "+targets.length+" Treffer");
+  if(used.key==="vamp"&&!vampUntil)vampCharge=Math.min(4,vampCharge+1);
+  if(bonus)heal(1);
+  const survives=monsters.includes(enemy);
+  if(used.key==="push"&&survives&&now>=pushAt){
+    if(tryShift(enemy,...direction,now)){pushAt=now+2500;fx("shock",player,target);}
+    else fx("slash",player,target);
+  }else if(used.key==="pull"&&survives&&now>=pullAt){
+    if(tryShift(enemy,-direction[0],-direction[1],now)){pullAt=now+2500;fx("rope",player,target);}
+    else fx("slash",player,target);
+  }else if(used.key==="frost"){
+    if(survives&&now>=frostAt){
+      frostAt=now+3000;enemy.frozen=now+1100+450*(used.rank-1);enemy.warning=null;
     }
+    fx("ice",player,target);
+  }else{
+    const effect=used.shift?"slash":used.fx;
+    fx(effect,player,target);
   }
-  monsterHits(now);draw();
+  draw();
+}
+function vampAbility(){
+  if(!playing||loot||!has("vamp")||vampCharge<4||vampUntil)return;
+  vampCharge=0;vampUntil=gameNow()+10000;
+  log("Vampirrausch · 10 Sekunden");draw();
+}
+function quake(){
+  if(!playing||loot||weapon().key!=="colossus"||quakeUsed)return;
+  const line=ray(player,...face,4);
+  if(!line.length){log("Vor dir ist eine Wand. Drehe dich für das Erdbeben.");draw();return;}
+  quakeUsed=true;
+  const bonus=vampUntil>gameNow()?1:0;
+  const hit=monsters.filter(enemy=>line.includes(enemy.pos));
+  for(const enemy of hit)damageEnemy(enemy,4+bonus);
+  if(hit.length&&bonus)heal(1);
+  fx("quake",player,line.at(-1));log("Erdbeben · "+hit.length+" Treffer");draw();
 }
 function step(pos){
   if(!playing||loot)return;
+  const direction=axis(player,pos);
+  if(direction&&distance(player,pos)===1)face=dirs.find(dir=>dir[0]===direction[0]&&dir[1]===direction[1]);
   const enemy=enemyAt(pos);
   if(enemy){attack(enemy);return;}
-  if(!neighbors(player).includes(pos)||walls.has(pos))return;
   const now=gameNow();
-  if(now<nextMove)return;
-  nextMove=now+150;
-  player=pos;
-  const hit=monsterHits(now);
-  if(ended){draw();return;}
-  if(!hit)message="Du bewegst dich.";
-  if(pos===exit&&!monsters.length){
-    score+=mode.bonus*4;level+=1;hp=Math.min(maxHp(),hp+2);
-    newLevel();message="Level geschafft. +"+mode.bonus+" Punkte und bis zu 1 ♥ zurück.";draw();return;
+  if(now<nextMove||distance(player,pos)!==1||walls.has(pos)){if(direction&&distance(player,pos)===1)draw();return;}
+  nextMove=now+150;player=pos;
+  if(pos===exit&&!monsters.length&&!enemyQueue.length){
+    score+=mode.bonus;level+=1;heal(2);
+    newLevel();log("Level geschafft · +"+mode.bonus+" Punkte");draw();return;
   }
-  if(pos===chest){openChest();return;}
+  contact(now);
+  if(playing&&chestMap.has(pos))openChest(pos);
   draw();
 }
-function tap(pos){
-  if(!playing||loot)return;
-  const enemy=enemyAt(pos);
-  if(enemy)attack(enemy);else step(pos);
-}
+function tap(pos){step(pos);}
 function move(index){
-  const [dx,dy]=dirs[index],x=player%10+dx,y=Math.floor(player/10)+dy;
-  if(inside(x,y))step(y*10+x);
+  if(!playing||loot)return;
+  face=dirs[index];
+  const pos=nextPos(player,...face);
+  if(pos!==null)step(pos);
 }
-function openChest(){
-  chest=null;
-  const pool=Object.keys(items).filter(key=>key!=="potion"&&!inventory.includes(key));
-  const first=level===1?"sword":pick(pool);
-  loot={choices:[first,pick(pool.filter(key=>key!==first)),"potion"],selected:null};
-  message="Wähle einen Gegenstand aus der Kiste.";draw();
+function makeItem(key,rank=1){return {key,rank};}
+function quality(key){
+  if(["vamp","blade","colossus"].includes(key))return 1;
+  return Math.min(4,1+Math.floor((level-items[key].level)/3));
 }
-function decide(key){
-  if(!loot)return;
+function openChest(pos){
+  const kind=chestMap.get(pos);chestMap.delete(pos);
+  const available=Object.keys(items).filter(key=>items[key].level&&items[key].level<=level);
+  const gear=available.filter(key=>!has(key)||inventory.find(item=>item?.key===key).rank<quality(key)).map(key=>makeItem(key,quality(key)));
+  const choices=[];
+  if(kind==="gear"){
+    const unlock=gear.find(item=>items[item.key].level===level&&level>1)|| (level===1?makeItem("sword"):null);
+    if(unlock)choices.push(unlock);
+    const upgrade=gear.find(item=>has(item.key)&&!choices.some(other=>other.key===item.key));
+    if(upgrade)choices.push(upgrade);
+  }
+  const remaining=gear.filter(item=>!choices.some(other=>other.key===item.key));
+  while(choices.length<(kind==="gear"?2:1)&&remaining.length){
+    const item=pick(remaining);choices.push(item);remaining.splice(remaining.indexOf(item),1);
+  }
+  if(kind==="stash"){
+    if(mode.heal)choices.push(makeItem("potion"));
+    if(level>=3||!mode.heal)choices.push(makeItem("antidote"));
+  }
+  if(!choices.length)choices.push(makeItem(mode.heal?"potion":"antidote"));
+  loot={choices,selected:null};log(kind==="stash"?"Schatzkiste geöffnet.":"Ausrüstungskiste geöffnet.");
+}
+function decide(item){
+  if(!playing||!loot)return;
+  const existing=inventory.findIndex(other=>other?.key===item.key&&!["potion","antidote"].includes(item.key));
   const empty=inventory.indexOf(null);
-  if(empty>=0){equipLoot(key,empty);return;}
-  loot.selected=key;draw();
+  if(existing>=0||empty>=0){equipLoot(item,existing>=0?existing:empty);return;}
+  loot.selected=item;draw();
 }
-function equipLoot(key,slot){
+function equipLoot(item,slot){
   const before=maxHp();
-  inventory[slot]=key;
-  hp=Math.min(maxHp(),hp+Math.max(0,maxHp()-before));
-  if(items[key].damage)active=slot;else if(active===slot)active=-1;
-  loot=null;message=items[key].name+" eingepackt.";draw();
+  inventory[slot]=item;
+  hp=Math.min(hp,maxHp());
+  heal(Math.max(0,maxHp()-before));
+  if(items[item.key].damage)active=slot;else if(active===slot)active=-1;
+  if(!has("vamp"))vampUntil=vampCharge=0;
+  loot=null;log(itemText(item)+" eingepackt.");draw();
 }
 function chooseSlot(index){
   if(!playing)return;
   if(loot?.selected){equipLoot(loot.selected,index);return;}
   if(loot)return;
-  if(inventory[index]==="potion"){drink(index);return;}
-  if(!items[inventory[index]]?.damage)return;
+  const key=inventory[index]?.key;
+  if(key==="potion"||key==="antidote"){consume(key,index);return;}
+  if(!items[key]?.damage)return;
   active=active===index?-1:index;draw();
 }
-function drink(index=inventory.indexOf("potion")){
+function consume(key,index=inventory.findIndex(item=>item?.key===key)){
   if(!playing||loot)return;
-  if(index<0){message="Du hast keinen Heiltrank.";draw();return;}
-  if(hp===maxHp()){message="Deine Herzen sind bereits voll.";draw();return;}
-  const gained=Math.min(mode.heal,maxHp()-hp);
-  hp+=gained;inventory[index]=null;
-  message="Heiltrank getrunken. +"+heart(gained)+" ♥.";draw();
+  if(index<0){log(key==="potion"?"Kein Heiltrank im Inventar.":"Kein Gegengift im Inventar.");draw();return;}
+  if(key==="potion"){
+    if(!mode.heal){log("In Sehr schwer ist Heilung gesperrt.");draw();return;}
+    const gain=heal(mode.heal);
+    if(!gain){log("Deine Herzen sind bereits voll.");draw();return;}
+    log("Heiltrank · +"+heart(gain)+" ♥");
+  }else{
+    if(!poisonTicks.length){log("Du bist gerade nicht vergiftet.");draw();return;}
+    poisonTicks=[];log("Das Gegengift wirkt.");
+  }
+  inventory[index]=null;draw();
+}
+function fx(kind,from,to){
+  const svg=$("effekte");
+  const node=(tag,attrs)=>{
+    const element=document.createElementNS("http://www.w3.org/2000/svg",tag);
+    for(const [name,value] of Object.entries(attrs))element.setAttribute(name,String(value));
+    return element;
+  };
+  const x=5+10*xOf(from),y=5+10*yOf(from),tx=5+10*xOf(to),ty=5+10*yOf(to);
+  const dx=tx-x,dy=ty-y,angle=Math.atan2(dy,dx)*180/Math.PI;
+  let effect;
+  if(kind==="slash"){
+    effect=node("path",{d:"M 5 -9 Q 18 0 5 9",pathLength:1,transform:"translate("+x+" "+y+") rotate("+angle+")"});
+  }else if(kind==="ring"||kind==="shock"&&from===to){
+    effect=node("circle",{cx:x,cy:y,r:kind==="ring"?20:5});
+  }else if(kind==="shock"){
+    effect=node("path",{d:"M 1 -5 Q 14 0 1 5 M 6 -7 Q 20 0 6 7",pathLength:1,transform:"translate("+x+" "+y+") rotate("+angle+")"});
+  }else if(kind==="quake"){
+    effect=node("path",{d:"M "+x+" "+y+" L "+(x+dx*.25-dy*.11)+" "+(y+dy*.25+dx*.11)
+      +" L "+(x+dx*.5+dy*.11)+" "+(y+dy*.5-dx*.11)+" L "+(x+dx*.75-dy*.11)+" "+(y+dy*.75+dx*.11)+" L "+tx+" "+ty});
+  }else{
+    effect=node("path",{d:"M "+x+" "+y+" L "+tx+" "+ty,pathLength:1});
+  }
+  effect.setAttribute("class","effekt "+kind);
+  svg.append(effect);
+  effect.addEventListener("animationend",()=>effect.remove(),{once:true});
+  setTimeout(()=>effect.remove(),750);
 }
 function showMode(){
   const chosen=modes[$("modus").value];
-  $("regeln").textContent=heart(chosen.hp)+" ♥ Startleben · "+points(chosen.rate*2)
-    +" Punkte pro abgezogenem Herz · "+chosen.bonus+" Punkte pro Level · Heiltrank +"+heart(chosen.heal)+" ♥";
+  $("regeln").textContent=heart(chosen.hp)+" ♥ Startleben · +"+chosen.bonus+" Punkte pro Level · "
+    +(chosen.heal?"Heiltrank +"+heart(chosen.heal)+" ♥":"1 Punkt je Gegner · keine Heilung · schnellere, stärkere Gegner");
 }
+function drawAbilities(now){
+  const vamp=has("vamp");
+  const rage=Math.max(0,Math.ceil((vampUntil-now)/1000));
+  const colossus=weapon().key==="colossus";
+  const cooldown=key=>{
+    const date={push:pushAt,pull:pullAt,frost:frostAt}[key]||0;
+    return date>now?" · Effekt in "+Math.ceil((date-now)/1000)+" s":"";
+  };
+  const w=weapon(),status=JSON.stringify([vamp,vampCharge,rage,colossus,quakeUsed,playing,w.key,w.rank,cooldown(w.key),poisonTicks.length]);
+  if(status===hudState)return;
+  hudState=status;
+  $("board-wrap").classList.toggle("vampirrausch",rage>0);
+  $("vampir").hidden=!vamp;
+  $("vamp-leiste").value=vampCharge;
+  $("vamp-status").textContent=rage?"Rausch · "+rage+" s":vampCharge+" / 4 Ladungen";
+  $("vamp-aktiv").disabled=!playing||vampCharge<4||rage>0;
+  $("beben").hidden=!colossus;
+  $("beben").disabled=!playing||quakeUsed;
+  $("beben").textContent=quakeUsed?"R · Erdbeben verbraucht":"R · Erdbeben";
+  $("gift").hidden=!poisonTicks.length;
+  $("waffe").textContent=w.key==="fist"?"Aktiv · Faust · ½ ♥":"Aktiv · "+itemText(w)+cooldown(w.key);
+}
+function draw(){
+  const now=gameNow();
+  const remaining=monsters.length+enemyQueue.length;
+  $("level").textContent="Level "+level;
+  $("leben").textContent=heart(hp)+" / "+heart(maxHp())+" ♥";
+  $("punkte").textContent=points(score)+" Pkt.";
+  $("raum").textContent=layout+" · "+remaining+" Gegner · "+traps.size+" Fallen";
+  $("status").textContent=message;
+  drawAbilities(now);
+  const danger=new Set([
+    ...monsters.flatMap(enemy=>enemy.warning?.cells||[]),
+    ...[...traps.values()].flatMap(trap=>trap.line||[])
+  ]);
+  cells.forEach((cell,pos)=>{
+    const enemy=enemyAt(pos),trap=traps.get(pos),chest=chestMap.get(pos);
+    let kind=(xOf(pos)+yOf(pos))%2?"alt":"",text="",label="Freier Boden";
+    if(walls.has(pos)){kind="wall";label="Wand";}
+    if(trap){
+      kind="trap";text=hazards[trap.type].icon;label=hazards[trap.type].name;
+      cell.style.setProperty("--trap",hazards[trap.type].color);
+    }
+    if(pos===exit){kind=remaining?"exit":"exit open";text=remaining?"◇":"◆";label=remaining?"Tor geschlossen":"Tor offen";}
+    if(chest){kind="chest";text=chest==="gear"?"▣":"✧";label=chest==="gear"?"Ausrüstungskiste":"Schatzkiste";}
+    if(enemy){
+      const type=types[enemy.key];
+      kind="foe"+(enemy.warning?" threat":"")+(enemy.frozen>now?" frozen":"");
+      text=type.icon;label=type.name+" · "+heart(enemy.hp)+" Herzen";
+      cell.style.setProperty("--monster",type.color);
+    }
+    if(pos===player){kind="hero";text=["↑","←","↓","→"][dirs.indexOf(face)]||"•";label="Deine Figur";}
+    cell.className="cell "+kind+(danger.has(pos)?" danger":"");
+    cell.title=label;cell.setAttribute("aria-label",label);
+    cell.textContent=text;
+    if(enemy&&pos!==player){
+      const badge=document.createElement("span");
+      badge.className="enemy-hp";badge.textContent=heart(enemy.hp)+"♥";cell.append(badge);
+    }
+  });
+  const slotsState=JSON.stringify([inventory,active,modeKey]);
+  if(slotsState!==inventoryView){
+    inventoryView=slotsState;
+    $("slots").replaceChildren(...inventory.map((item,index)=>{
+      const button=document.createElement("button");button.type="button";
+      button.textContent=(index+1)+" · "+(item?itemText(item):"Leer");
+      button.setAttribute("aria-pressed",String(active===index));
+      button.onclick=()=>chooseSlot(index);return button;
+    }));
+  }
+  $("loot").hidden=!loot;
+  const offersState=JSON.stringify(loot);
+  if(offersState===lootView)return;
+  lootView=offersState;
+  $("beute-hinweis").textContent=loot?.selected?"Inventar voll. Wähle einen Platz zum Ersetzen.":"Wähle einen Gegenstand.";
+  $("angebote").replaceChildren(...(loot?.choices??[]).map((item,index)=>{
+    const button=document.createElement("button");button.type="button";
+    button.textContent=(index+1)+" · "+itemText(item);
+    button.setAttribute("aria-pressed",String(loot.selected===item));
+    button.onclick=()=>decide(item);return button;
+  }));
+}
+function attackNearest(){
+  const used=weapon();
+  const target=monsters.filter(enemy=>canHit(enemy,used)).sort((a,b)=>distance(player,a.pos)-distance(player,b.pos))[0];
+  attack(target);
+}
+view.querySelectorAll("[data-dir]").forEach(button=>button.onclick=()=>move(Number(button.dataset.dir)));
+document.addEventListener("keydown",event=>{
+  if(host.hidden||!playing||event.altKey||event.ctrlKey||event.metaKey)return;
+  const target=event.composedPath()[0];
+  if(target?.matches?.("input,select,textarea,[contenteditable]"))return;
+  const key=event.key.toLowerCase();
+  const map={arrowup:0,w:0,arrowleft:1,a:1,arrowdown:2,s:2,arrowright:3,d:3};
+  if(Object.hasOwn(map,key)){event.preventDefault();move(map[key]);}
+  if(key===" "&&!loot){event.preventDefault();attackNearest();}
+  if(event.repeat)return;
+  if(key==="h"){event.preventDefault();consume("potion");}
+  if(key==="g"){event.preventDefault();consume("antidote");}
+  if(key==="v"){event.preventDefault();vampAbility();}
+  if(key==="r"){event.preventDefault();quake();}
+  if(key==="escape"&&loot){event.preventDefault();$("liegen").click();}
+  if(["1","2","3"].includes(key)){
+    event.preventDefault();
+    const index=Number(key)-1;
+    if(loot&&!loot.selected){if(loot.choices[index])decide(loot.choices[index]);}
+    else chooseSlot(index);
+  }
+});
+$("neu").onclick=()=>restart(true);
+$("modus").onchange=showMode;
+$("liegen").onclick=()=>{if(loot){loot=null;log("Du lässt die Beute zurück.");draw();}};
+$("vamp-aktiv").onclick=vampAbility;
+$("beben").onclick=quake;
+$("angriff").onclick=attackNearest;
 function showRank(){
   $("rangleer").textContent=rankings.length?"":"Noch keine Ergebnisse.";
   $("rang").replaceChildren(...rankings.map(entry=>{
@@ -838,13 +1288,16 @@ async function scoreRequest(query,options={}){
     if(options.method!=="POST")return await result.json();
   }finally{clearTimeout(timer);}
 }
+let rankVersion=0;
 async function loadOnlineRank(){
+  const version=++rankVersion;
   try{
-    const rows=await scoreRequest("?select=spieler,punkte_viertel,level_abschluss,modus&order=punkte_viertel.desc,level_abschluss.desc,erstellt.asc,id.asc&limit=10");
-    rankings=rows.map(row=>({name:row.spieler,score:row.punkte_viertel,levels:row.level_abschluss,mode:row.modus}));
+    const rows=await scoreRequest("?select=spieler,punkte,level_abschluss,modus&order=punkte.desc,level_abschluss.desc,erstellt.asc,id.asc&limit=10");
+    if(version!==rankVersion)return;
+    rankings=rows.map(row=>({name:row.spieler,score:row.punkte,levels:row.level_abschluss,mode:row.modus}));
     showRank();
   }catch{
-    $("rangleer").textContent="Die Online-Rangliste konnte nicht geladen werden.";
+    if(version===rankVersion)$("rangleer").textContent="Online-Rangliste nicht erreichbar. Prüfe, ob die neue SQL-Tabelle eingerichtet ist.";
   }
 }
 $("eintrag").onsubmit=async event=>{
@@ -861,7 +1314,7 @@ $("eintrag").onsubmit=async event=>{
       await scoreRequest("?on_conflict=id",{
         method:"POST",
         headers:{"Content-Type":"application/json",Prefer:"resolution=ignore-duplicates,return=minimal"},
-        body:JSON.stringify({id:runId,spieler:entry.name,punkte_viertel:entry.score,level_abschluss:entry.levels,modus:entry.mode})
+        body:JSON.stringify({id:runId,spieler:entry.name,punkte:entry.score,level_abschluss:entry.levels,modus:entry.mode})
       });
     }else{
       rankings.push(entry);
@@ -883,84 +1336,12 @@ $("eintrag").onsubmit=async event=>{
     submit.disabled=$("neu").disabled=false;
   }
 };
-function draw(){
-  $("level").textContent="Level "+level;
-  $("leben").textContent=heart(hp)+" / "+heart(maxHp())+" ♥";
-  $("punkte").textContent=points(score)+" Pkt.";
-  $("status").textContent=message;
-  $("waffe").textContent="Aktiv · "+weapon().name+" · "+heart(weapon().damage)+" ♥";
-  cells.forEach((cell,pos)=>{
-    const enemy=enemyAt(pos);
-    let kind=(pos+Math.floor(pos/10))%2?"alt":"",text="",label="Freier Boden";
-    if(walls.has(pos)){kind="wall";label="Wand";}
-    if(pos===exit){kind=monsters.length?"exit":"exit open";text=monsters.length?"◇":"◆";label=monsters.length?"Tor geschlossen":"Tor offen";}
-    if(pos===chest){kind="chest";text="▣";label="Kiste";}
-    if(enemy){kind=distance(enemy.pos,player)===1?"foe threat":"foe";label="Monster, "+heart(enemy.hp)+" Herzen";}
-    if(pos===player){kind="hero";text="•";label="Deine Figur";}
-    cell.className="cell "+kind;cell.title=label;cell.setAttribute("aria-label",label);
-    if(enemy){
-      const badge=document.createElement("span");
-      badge.className="enemy-hp";badge.textContent=heart(enemy.hp)+"♥";
-      cell.replaceChildren(badge);
-    }else cell.textContent=text;
-  });
-  const slotsState=JSON.stringify([inventory,active,modeKey]);
-  if(slotsState!==inventoryView){
-    inventoryView=slotsState;
-    $("slots").replaceChildren(...inventory.map((key,index)=>{
-    const button=document.createElement("button");button.type="button";
-    button.textContent=(index+1)+" · "+(key?itemText(key):"Leer");
-    button.setAttribute("aria-pressed",String(active===index));
-    button.onclick=()=>chooseSlot(index);
-    return button;
-  }));
-  }
-  $("loot").hidden=!loot;
-  $("beute-hinweis").textContent=loot?.selected?"Wähle einen Inventarslot zum Ersetzen.":"Nimm einen Gegenstand.";
-  const offersState=JSON.stringify(loot);
-  if(offersState===lootView)return;
-  lootView=offersState;
-  $("angebote").replaceChildren(...(loot?.choices??[]).map(key=>{
-    const button=document.createElement("button");button.type="button";
-    button.textContent=itemText(key);
-    button.setAttribute("aria-pressed",String(loot.selected===key));
-    button.onclick=()=>decide(key);
-    return button;
-  }));
-}
-view.querySelectorAll("[data-dir]").forEach(button=>button.onclick=()=>move(Number(button.dataset.dir)));
-document.addEventListener("keydown",event=>{
-  if(host.hidden||event.altKey||event.ctrlKey||event.metaKey)return;
-  const targetElement = event.composedPath()[0];
-  if(targetElement?.matches?.("input,select,textarea,[contenteditable]"))return;
-  if(!playing)return;
-  const key=event.key.toLowerCase();
-  const map={arrowup:0,w:0,arrowleft:1,a:1,arrowdown:2,s:2,arrowright:3,d:3};
-  if(Object.hasOwn(map,key)){event.preventDefault();move(map[key]);}
-  if(key===" "&&!loot){
-    event.preventDefault();
-    const used=weapon();
-    const target=monsters.filter(enemy=>canHit(enemy,used)).sort((a,b)=>distance(player,a.pos)-distance(player,b.pos))[0];
-    if(target)attack(target);
-  }
-  if(event.repeat)return;
-  if(key==="h"){event.preventDefault();drink();}
-  if(["1","2","3"].includes(key)){
-    event.preventDefault();
-    const index=Number(key)-1;
-    if(loot&&!loot.selected){if(loot.choices[index])decide(loot.choices[index]);}
-    else chooseSlot(index);
-  }
-});
-$("neu").onclick=()=>restart(true);
-$("modus").onchange=showMode;
-$("liegen").onclick=()=>{if(loot){loot=null;message="Du lässt die Beute zurück.";draw();}};
 showMode();restart();
 if(online){
   $("rangtitel").textContent="Herzkammern · Online-Top-10";
   if(!host.hidden)loadOnlineRank();
 }else showRank();
-setInterval(updateMonsters,50);
+setInterval(updateMonsters,60);
 
 })();
 </script>
