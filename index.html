@@ -210,6 +210,7 @@
   #flugfeld .gleiter { background: #81f0c4; }
   #flugfeld .felsen { background: #b69cff; }
   #flugfeld .treffer { background: #ff796e; }
+  #flug-eintrag { margin-top: 1rem; }
   #flug-hoch, #flug-start { width: 100%; margin-top: .4rem; }
 </style>
 <script>
@@ -227,12 +228,22 @@
   flug.innerHTML = `
     <h1>Schwebekurs</h1>
     <p>Dein Gleiter sinkt von selbst. Tippe auf Hoch oder drücke die Leertaste,
-      um ein Feld aufzusteigen. Weiche den violetten Felsen aus.</p>
+      um ein Feld aufzusteigen. Am Boden kannst du bleiben, bis ein Felsen kommt.</p>
     <strong>Punkte: <output id="flug-punkte">0</output></strong>
     <div id="flugfeld" role="img" aria-label="5 mal 5 Spielfelder"></div>
     <button id="flug-hoch" type="button" disabled>↑ Hoch</button>
     <p id="flug-status" role="status">Bereit zum Start.</p>
-    <button id="flug-start" type="button">Flug starten</button>`;
+    <button id="flug-start" type="button">Flug starten</button>
+    <form id="flug-eintrag" hidden>
+      <label for="flug-name">Spitzname für die Rangliste</label>
+      <input id="flug-name" required maxlength="20" autocomplete="off">
+      <button id="flug-speichern" type="submit">Punkte speichern</button>
+    </form>
+    <section>
+      <h2>Schwebekurs · Top 10</h2>
+      <p id="flug-rangstatus" role="status"></p>
+      <ol id="flug-rang"></ol>
+    </section>`;
   const meteorInhalt = document.createElement("div");
   while (meteor.firstChild) meteorInhalt.append(meteor.firstChild);
   meteor.append(nav, meteorInhalt, flug);
@@ -243,6 +254,16 @@
   const status = flug.querySelector("#flug-status");
   const feld = flug.querySelector("#flugfeld");
   const anzeige = flug.querySelector("#flug-punkte");
+  const eintrag = flug.querySelector("#flug-eintrag");
+  const name = flug.querySelector("#flug-name");
+  const speichern = flug.querySelector("#flug-speichern");
+  const rang = flug.querySelector("#flug-rang");
+  const rangstatus = flug.querySelector("#flug-rangstatus");
+  const verbunden = typeof konfiguriert !== "undefined" && konfiguriert;
+  const flugApi = verbunden
+    ? SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/schwebekurs_scores"
+    : "";
+  let rundenId, speichert = false, rangVersion = 0;
   const zellen = Array.from({ length: 25 }, () => {
     const zelle = document.createElement("span");
     feld.append(zelle);
@@ -258,13 +279,12 @@
     for (const stein of steine) {
       for (const y of stein.zeilen) zellen[y * 5 + stein.x].classList.add("felsen");
     }
-    zellen[Math.min(hoehe, 4) * 5 + 1].classList.add(treffer ? "treffer" : "gleiter");
+    zellen[hoehe * 5 + 1].classList.add(treffer ? "treffer" : "gleiter");
     anzeige.textContent = punktzahl;
   }
 
   function pruefen() {
-    const getroffen = hoehe > 4
-      || steine.some(stein => stein.x === 1 && stein.zeilen.includes(hoehe));
+    const getroffen = steine.some(stein => stein.x === 1 && stein.zeilen.includes(hoehe));
     zeichnen(getroffen);
     if (!getroffen) return false;
     fliegt = false;
@@ -273,6 +293,7 @@
     start.disabled = false;
     start.textContent = "Nochmal fliegen";
     status.textContent = "Flug beendet. Endstand: " + punktzahl;
+    eintrag.hidden = !verbunden;
     return true;
   }
 
@@ -282,7 +303,7 @@
 
   function flugschritt() {
     takt += 1;
-    if (takt % 2 === 0) hoehe += 1;
+    if (takt % 2 === 0) hoehe = Math.min(4, hoehe + 1);
     for (const stein of steine) stein.x -= 1;
     steine = steine.filter(stein => stein.x >= 0);
     if (takt % 4 === 0) neuerFelsen();
@@ -295,6 +316,9 @@
   }
 
   start.onclick = () => {
+    if (fliegt || speichert) return;
+    rundenId = verbunden ? crypto.randomUUID() : null;
+    eintrag.hidden = true;
     hoehe = 2;
     takt = 0;
     punktzahl = 0;
@@ -320,6 +344,75 @@
     if (!event.repeat) hoch.onclick();
   });
 
+  async function flugAnfrage(query, optionen = {}) {
+    const controller = new AbortController();
+    const frist = setTimeout(() => controller.abort(), 8000);
+    try {
+      const antwort = await fetch(flugApi + query, {
+        ...optionen,
+        headers: { apikey: SUPABASE_KEY, ...optionen.headers },
+        signal: controller.signal
+      });
+      if (!antwort.ok) throw new Error("HTTP " + antwort.status);
+      if (optionen.method !== "POST") return await antwort.json();
+    } finally {
+      clearTimeout(frist);
+    }
+  }
+
+  async function ladeRangliste() {
+    if (!verbunden) {
+      rangstatus.textContent = "Die Online-Rangliste ist noch nicht verbunden.";
+      return;
+    }
+    const version = ++rangVersion;
+    try {
+      const ergebnisse = await flugAnfrage(
+        "?select=spieler,punkte&order=punkte.desc,erstellt.asc,id.asc&limit=10"
+      );
+      if (version !== rangVersion) return;
+      const zeilen = ergebnisse.map(ergebnis => {
+        const li = document.createElement("li");
+        li.textContent = ergebnis.spieler + " · " + ergebnis.punkte;
+        return li;
+      });
+      rang.replaceChildren(...zeilen);
+      rangstatus.textContent = ergebnisse.length ? "" : "Noch keine Ergebnisse.";
+    } catch {
+      if (version === rangVersion) rangstatus.textContent = "Rangliste gerade nicht erreichbar.";
+    }
+  }
+
+  eintrag.onsubmit = async event => {
+    event.preventDefault();
+    if (fliegt || speichert || eintrag.hidden) return;
+    const spieler = name.value.trim();
+    if (!spieler) {
+      status.textContent = "Gib bitte einen Spitznamen ein.";
+      return;
+    }
+    speichert = true;
+    speichern.disabled = start.disabled = true;
+    try {
+      await flugAnfrage("?on_conflict=id", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Prefer: "resolution=ignore-duplicates,return=minimal"
+        },
+        body: JSON.stringify({ id: rundenId, spieler, punkte: punktzahl })
+      });
+      eintrag.hidden = true;
+      status.textContent = "Punkte gespeichert! Endstand: " + punktzahl;
+      await ladeRangliste();
+    } catch {
+      status.textContent = "Speichern fehlgeschlagen. Versuch es noch einmal.";
+    } finally {
+      speichert = false;
+      speichern.disabled = start.disabled = false;
+    }
+  };
+
   function zeigeFlug(anzeigen) {
     if (anzeigen === !flug.hidden) return;
     flug.hidden = !anzeigen;
@@ -328,6 +421,7 @@
     flugTab.setAttribute("aria-pressed", String(anzeigen));
 
     if (anzeigen) {
+      ladeRangliste();
       if (typeof laeuft !== "undefined" && laeuft) {
         clearTimeout(timer);
         laeuft = false;
