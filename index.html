@@ -201,4 +201,153 @@
   zeichnen();
   ranglisteLaden();
 </script>
+<!-- Beginn Schwebekurs-Zusatz -->
+<style>
+  #spielwahl { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.2rem; }
+  #spielwahl [aria-pressed="true"] { background: #a6dcff; color: #0b1425; }
+  #flugfeld { width: min(100%, 19rem); margin: 1rem auto; display: grid;
+    grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  #flugfeld .gleiter { background: #81f0c4; }
+  #flugfeld .felsen { background: #b69cff; }
+  #flugfeld .treffer { background: #ff796e; }
+  #flug-hoch, #flug-start { width: 100%; margin-top: .4rem; }
+</style>
+<script>
+(() => {
+  const meteor = document.querySelector("main");
+  const nav = document.createElement("nav");
+  nav.id = "spielwahl";
+  nav.setAttribute("aria-label", "Spiel auswählen");
+  nav.innerHTML = `
+    <button type="button" aria-pressed="true">Meteor-Ausweichen</button>
+    <button type="button" aria-pressed="false">Schwebekurs</button>`;
+
+  const flug = document.createElement("div");
+  flug.hidden = true;
+  flug.innerHTML = `
+    <h1>Schwebekurs</h1>
+    <p>Dein Gleiter sinkt von selbst. Tippe auf Hoch oder drücke die Leertaste,
+      um ein Feld aufzusteigen. Weiche den violetten Felsen aus.</p>
+    <strong>Punkte: <output id="flug-punkte">0</output></strong>
+    <div id="flugfeld" role="img" aria-label="5 mal 5 Spielfelder"></div>
+    <button id="flug-hoch" type="button" disabled>↑ Hoch</button>
+    <p id="flug-status" role="status">Bereit zum Start.</p>
+    <button id="flug-start" type="button">Flug starten</button>`;
+  const meteorInhalt = document.createElement("div");
+  while (meteor.firstChild) meteorInhalt.append(meteor.firstChild);
+  meteor.append(nav, meteorInhalt, flug);
+
+  const [meteorTab, flugTab] = nav.querySelectorAll("button");
+  const hoch = flug.querySelector("#flug-hoch");
+  const start = flug.querySelector("#flug-start");
+  const status = flug.querySelector("#flug-status");
+  const feld = flug.querySelector("#flugfeld");
+  const anzeige = flug.querySelector("#flug-punkte");
+  const zellen = Array.from({ length: 25 }, () => {
+    const zelle = document.createElement("span");
+    feld.append(zelle);
+    return zelle;
+  });
+
+  const muster = [[0, 1], [0, 4], [3, 4], [1, 3]];
+  let hoehe = 2, takt = 0, punktzahl = 0, steine = [];
+  let fliegt = false, flugTimer, meteorPausiert = false;
+
+  function zeichnen(treffer = false) {
+    for (const zelle of zellen) zelle.className = "zelle";
+    for (const stein of steine) {
+      for (const y of stein.zeilen) zellen[y * 5 + stein.x].classList.add("felsen");
+    }
+    zellen[Math.min(hoehe, 4) * 5 + 1].classList.add(treffer ? "treffer" : "gleiter");
+    anzeige.textContent = punktzahl;
+  }
+
+  function pruefen() {
+    const getroffen = hoehe > 4
+      || steine.some(stein => stein.x === 1 && stein.zeilen.includes(hoehe));
+    zeichnen(getroffen);
+    if (!getroffen) return false;
+    fliegt = false;
+    clearTimeout(flugTimer);
+    hoch.disabled = true;
+    start.disabled = false;
+    start.textContent = "Nochmal fliegen";
+    status.textContent = "Flug beendet. Endstand: " + punktzahl;
+    return true;
+  }
+
+  function planeFlug() {
+    flugTimer = setTimeout(flugschritt, Math.max(230, 560 - punktzahl * 25));
+  }
+
+  function flugschritt() {
+    takt += 1;
+    if (takt % 2 === 0) hoehe += 1;
+    for (const stein of steine) stein.x -= 1;
+    steine = steine.filter(stein => stein.x >= 0);
+    if (takt % 4 === 0) neuerFelsen();
+    if (steine.some(stein => stein.x === 0)) punktzahl += 1;
+    if (!pruefen()) planeFlug();
+  }
+
+  function neuerFelsen() {
+    steine.push({ x: 4, zeilen: muster[Math.floor(Math.random() * muster.length)] });
+  }
+
+  start.onclick = () => {
+    hoehe = 2;
+    takt = 0;
+    punktzahl = 0;
+    steine = [];
+    neuerFelsen();
+    fliegt = true;
+    start.disabled = true;
+    hoch.disabled = false;
+    status.textContent = "Du fliegst.";
+    zeichnen();
+    planeFlug();
+  };
+
+  hoch.onclick = () => {
+    if (!fliegt || flug.hidden) return;
+    hoehe = Math.max(0, hoehe - 1);
+    pruefen();
+  };
+
+  document.addEventListener("keydown", event => {
+    if (flug.hidden || !fliegt || event.code !== "Space") return;
+    event.preventDefault();
+    if (!event.repeat) hoch.onclick();
+  });
+
+  function zeigeFlug(anzeigen) {
+    if (anzeigen === !flug.hidden) return;
+    flug.hidden = !anzeigen;
+    meteorInhalt.hidden = anzeigen;
+    meteorTab.setAttribute("aria-pressed", String(!anzeigen));
+    flugTab.setAttribute("aria-pressed", String(anzeigen));
+
+    if (anzeigen) {
+      if (typeof laeuft !== "undefined" && laeuft) {
+        clearTimeout(timer);
+        laeuft = false;
+        meteorPausiert = true;
+      }
+      if (fliegt) planeFlug();
+    } else {
+      clearTimeout(flugTimer);
+      if (meteorPausiert) {
+        meteorPausiert = false;
+        laeuft = true;
+        timer = setTimeout(fallen, Math.max(150, 500 - punkte * 25));
+      }
+    }
+  }
+
+  meteorTab.onclick = () => zeigeFlug(false);
+  flugTab.onclick = () => zeigeFlug(true);
+  zeichnen();
+})();
+</script>
+<!-- Ende Schwebekurs-Zusatz -->
 </html>
