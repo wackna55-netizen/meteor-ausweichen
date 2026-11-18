@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meteor-Ausweichen</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b1425; color: #f2f6ff; font: 1rem system-ui, sans-serif; }
+  main { width: min(100% - 2rem, 29rem); margin: 2rem auto; }
+  h1 { font-size: clamp(1.8rem, 7vw, 2.6rem); margin: 0; }
+  p { color: #c4d2ea; }
+  #feld { width: min(100%, 19rem); margin: 1rem auto; display: grid;
+    grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .zelle { aspect-ratio: 1; border: 1px solid #304564; border-radius: 7px; background: #16253d; }
+  .spieler { background: #77d9ff; }
+  .meteor { background: #ff9b6a; }
+  .steuerung { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  button, input { min-height: 44px; padding: .65rem .9rem; border-radius: 8px; font: inherit; }
+  button { border: 1px solid #506a92; background: #233959; color: white;
+    font-weight: 650; cursor: pointer; touch-action: manipulation; }
+  button:disabled { opacity: .55; cursor: default; }
+  #start { width: 100%; background: #a6dcff; color: #0b1425; }
+  #eintrag { margin-top: 1rem; }
+  input { width: 100%; margin: .4rem 0; border: 1px solid #506a92; background: #0f1b2e; color: white; }
+  section { margin-top: 1.8rem; border-top: 1px solid #304564; }
+  li { padding: .35rem .3rem; overflow-wrap: anywhere; }
+</style>
+<main>
+  <h1>Meteor-Ausweichen</h1>
+  <p>Steuere dein blaues Schiff mit den Tasten unten oder mit ← und →.</p>
+  <strong>Punkte: <output id="punkte">0</output></strong>
+  <div id="feld" role="img" aria-label="5 mal 5 Spielfelder"></div>
+  <div class="steuerung">
+    <button id="links" disabled>← Links</button>
+    <button id="rechts" disabled>Rechts →</button>
+  </div>
+  <p id="status" role="status">Bereit zum Start.</p>
+  <button id="start">Spiel starten</button>
+  <form id="eintrag" hidden>
+    <label for="name">Spitzname für die Rangliste</label>
+    <input id="name" required maxlength="20" autocomplete="off">
+    <button id="speichern">Punkte speichern</button>
+  </form>
+  <section>
+    <h2>Top 10</h2>
+    <p id="rangstatus" role="status"></p>
+    <ol id="rang"></ol>
+  </section>
+</main>
+<script>
+  // Ersetze die beiden Werte zwischen den Anführungszeichen.
+  const SUPABASE_URL = "https://bxrlgvsumgxxobynmbta.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_D4xcCwNRl7MdP7uqo9_zgQ_gHe47kvw";
+
+  const $ = id => document.getElementById(id);
+  const konfiguriert = !SUPABASE_URL.includes("DEIN-PROJEKT")
+    && SUPABASE_KEY.startsWith("sb_publishable_")
+    && !SUPABASE_KEY.includes("DEIN_SCHLUESSEL");
+  const api = SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/meteor_scores";
+  const zellen = Array.from({ length: 25 }, () => {
+    const zelle = document.createElement("span");
+    $("feld").append(zelle);
+    return zelle;
+  });
+
+  let spieler = 2, meteorX = 2, meteorY = 0, punkte = 0;
+  let laeuft = false, timer, rundenId, speichert = false;
+  let rangAnfrage = 0;
+
+  function zeichnen() {
+    zellen.forEach(zelle => zelle.className = "zelle");
+    zellen[20 + spieler].classList.add("spieler");
+    zellen[meteorY * 5 + meteorX].classList.add("meteor");
+    $("punkte").textContent = punkte;
+  }
+
+  function neuerMeteor() {
+    meteorX = Math.floor(Math.random() * 5);
+    meteorY = 0;
+  }
+
+  function pruefeTreffer() {
+    if (meteorY !== 4 || meteorX !== spieler) return false;
+    laeuft = false;
+    clearTimeout(timer);
+    $("links").disabled = $("rechts").disabled = true;
+    $("start").disabled = false;
+    $("start").textContent = "Nochmal spielen";
+    $("status").textContent = "Treffer! Endstand: " + punkte;
+    $("eintrag").hidden = !konfiguriert;
+    return true;
+  }
+
+  function verschieben(richtung) {
+    if (!laeuft) return;
+    spieler = Math.max(0, Math.min(4, spieler + richtung));
+    zeichnen();
+    pruefeTreffer();
+  }
+
+  function fallen() {
+    if (!laeuft) return;
+    meteorY += 1;
+    if (meteorY > 4) {
+      punkte += 1;
+      neuerMeteor();
+    }
+    zeichnen();
+    if (!pruefeTreffer()) timer = setTimeout(fallen, Math.max(150, 500 - punkte * 25));
+  }
+
+  $("start").onclick = () => {
+    spieler = 2;
+    punkte = 0;
+    rundenId = konfiguriert ? crypto.randomUUID() : null;
+    laeuft = true;
+    $("eintrag").hidden = true;
+    $("start").disabled = true;
+    $("links").disabled = $("rechts").disabled = false;
+    $("status").textContent = "Runde läuft.";
+    neuerMeteor();
+    zeichnen();
+    timer = setTimeout(fallen, 500);
+  };
+
+  $("links").onclick = () => verschieben(-1);
+  $("rechts").onclick = () => verschieben(1);
+  document.addEventListener("keydown", event => {
+    if (!laeuft || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    verschieben(event.key === "ArrowLeft" ? -1 : 1);
+  });
+
+  async function anfrage(query, optionen = {}) {
+    const controller = new AbortController();
+    const frist = setTimeout(() => controller.abort(), 8000);
+    try {
+      const antwort = await fetch(api + query, {
+        ...optionen,
+        headers: { apikey: SUPABASE_KEY, ...optionen.headers },
+        signal: controller.signal
+      });
+      if (!antwort.ok) throw new Error("HTTP " + antwort.status);
+      return optionen.method === "POST" ? null : await antwort.json();
+    } finally {
+      clearTimeout(frist);
+    }
+  }
+
+  async function ranglisteLaden() {
+    if (!konfiguriert) {
+      $("rangstatus").textContent = "Die Online-Rangliste ist noch nicht verbunden.";
+      return;
+    }
+    const version = ++rangAnfrage;
+    try {
+      const daten = await anfrage("?select=spieler,punkte&order=punkte.desc,erstellt.asc,id.asc&limit=10");
+      if (version !== rangAnfrage) return;
+      const eintraege = daten.map(runde => {
+        const li = document.createElement("li");
+        li.textContent = runde.spieler + " · " + runde.punkte;
+        return li;
+      });
+      $("rang").replaceChildren(...eintraege);
+      $("rangstatus").textContent = daten.length ? "" : "Noch keine Ergebnisse.";
+    } catch {
+      if (version === rangAnfrage) $("rangstatus").textContent = "Rangliste gerade nicht erreichbar.";
+    }
+  }
+
+  $("eintrag").onsubmit = async event => {
+    event.preventDefault();
+    if (laeuft || speichert || $("eintrag").hidden) return;
+    const spielername = $("name").value.trim();
+    if (!spielername) {
+      $("status").textContent = "Gib bitte einen Spitznamen ein.";
+      return;
+    }
+    speichert = true;
+    $("speichern").disabled = $("start").disabled = true;
+    try {
+      await anfrage("?on_conflict=id", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Prefer: "resolution=ignore-duplicates,return=minimal"
+        },
+        body: JSON.stringify({ id: rundenId, spieler: spielername, punkte })
+      });
+      $("eintrag").hidden = true;
+      $("status").textContent = "Punkte gespeichert!";
+      await ranglisteLaden();
+    } catch {
+      $("status").textContent = "Speichern fehlgeschlagen. Versuch es noch einmal.";
+    } finally {
+      speichert = false;
+      $("speichern").disabled = $("start").disabled = false;
+    }
+  };
+
+  zeichnen();
+  ranglisteLaden();
+</script>
+</html>
