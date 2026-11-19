@@ -1402,4 +1402,598 @@ setInterval(updateMonsters,60);
 
 })();
 </script>
+<!-- Ringduell: diesen gesamten Block vor </html> einfügen. -->
+
+<style>
+  #arcade:has(#ringduell:not([hidden])) { width: min(100% - 2rem, 40rem); }
+  #ringduell[hidden], #ringduell [hidden], #rd-einladungen[hidden],
+  #herzkammern-panel[hidden] { display: none !important; }
+  #ringduell { color: #edf4fb; --rd-border: #405571; }
+  #ringduell h1, #ringduell h2 { margin: .75rem 0 .5rem; }
+  #ringduell p { margin: .45rem 0; }
+  .rd-bar { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  #rd-name { width: 12rem; max-width: 100%; margin: 0; }
+  #rd-level { min-height: 44px; max-width: 100%; font: inherit; }
+  #rd-board {
+    display: grid;
+    grid-template-columns: 1.1rem repeat(7, minmax(0, 1fr));
+    gap: clamp(2px, 1vw, 5px);
+    max-width: 32rem;
+    margin: .6rem auto 1rem;
+  }
+  #rd-board span { display: grid; place-items: center; font-size: .8rem; }
+  #rd-board button {
+    aspect-ratio: 1; min-width: 0; min-height: 0; padding: 0;
+    border: 2px solid transparent; border-radius: 17%;
+    color: #132232; background: var(--tile); opacity: 1;
+    font-size: clamp(.9rem, 5vw, 1.7rem); font-weight: 850;
+  }
+  #rd-board button[data-ring="1"] { --tile: #a4dc86; }
+  #rd-board button[data-ring="2"] { --tile: #f18b91; }
+  #rd-board button[data-ring="3"] { --tile: #82cde8; }
+  #rd-board button.rd-locked { opacity: .48; }
+  #rd-board button:not(:disabled):hover { filter: brightness(1.2); }
+  #rd-board button:not(:disabled) { border-color: #f3f7fd; }
+  #rd-board button.rd-last { box-shadow: inset 0 0 0 2px #132232; }
+  #rd-board button:focus-visible { outline: 2px solid white; outline-offset: 1px; }
+  #rd-online { padding-top: .6rem; }
+  #rd-people { padding-left: 1.2rem; }
+  #rd-people button, #rd-ranking button, #rd-einladungen button { padding: .25rem .45rem; }
+  .rd-table { overflow-x: auto; }
+  #rd-ranking { width: 100%; border-collapse: collapse; text-align: left; }
+  #rd-ranking th, #rd-ranking td { padding: .4rem; border-bottom: 1px solid var(--rd-border); }
+  #rd-einladungen {
+    margin: .7rem 0; padding: .65rem; border: 1px solid #79a9c0;
+    border-radius: 8px; background: #182e41;
+  }
+  #rd-einladungen p { overflow-wrap: anywhere; margin: .2rem 0; }
+  #rd-feedback { color: #ffe3a5; overflow-wrap: anywhere; }
+</style>
+
+<script>
+(() => {
+  "use strict";
+  const nav = document.getElementById("spielwahl");
+  const arcade = document.getElementById("arcade");
+  if (!nav || !arcade || document.getElementById("ringduell")) return;
+
+  const originalTabs = Array.from(nav.querySelectorAll("button"));
+  const [meteorTab, flugTab, herzTab] = originalTabs;
+  const meteorPane = document.getElementById("feld")?.parentElement;
+  const flugPane = document.getElementById("flugfeld")?.parentElement;
+  const herzPane = document.getElementById("herzkammern-panel");
+  if (!herzTab || !meteorPane || !flugPane || !herzPane) return;
+
+  function element(tag, text) {
+    const node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  const lobby = element("aside");
+  lobby.id = "rd-einladungen";
+  lobby.hidden = true;
+  lobby.setAttribute("aria-label", "Ringduell-Einladungen");
+  nav.after(lobby);
+
+  const tab = element("button", "Ringduell");
+  tab.type = "button";
+  tab.setAttribute("aria-pressed", "false");
+  nav.append(tab);
+
+  const panel = element("div");
+  panel.id = "ringduell";
+  panel.hidden = true;
+  panel.innerHTML = `
+    <h1>Ringduell</h1>
+    <div class="rd-bar">
+      <label for="rd-level">Computer</label>
+      <select id="rd-level">
+        <option value="easy">Leicht</option>
+        <option value="normal" selected>Normal</option>
+        <option value="hard">Schwer</option>
+      </select>
+      <button id="rd-start" type="button">Gegen Computer spielen</button>
+      <button id="rd-leave" type="button" hidden>Partie verlassen</button>
+    </div>
+    <p id="rd-match" role="status">Wähle den Computer oder lade jemanden online ein.</p>
+    <p id="rd-score"></p>
+    <div id="rd-board" role="group" aria-label="Ringduell, 7 mal 7 Felder"></div>
+    <details>
+      <summary>Spielregeln</summary>
+      <p>Setze abwechselnd. Erst die grüne Mitte, dann der rote Ring, zuletzt der blaue Ring.
+      Jedes eigene Feld gibt einen Punkt. Jede über Kanten oder Ecken verbundene Gruppe
+      bringt einen Bonuspunkt pro Feld nach dem ersten. Jedes eigene Feld, das einen
+      Gegner berührt, kostet einmal einen Punkt. Kanten und Ecken zählen auch beim Abzug.</p>
+    </details>
+    <section id="rd-online">
+      <h2>Online spielen</h2>
+      <form id="rd-profile" class="rd-bar">
+        <label for="rd-name">Spitzname</label>
+        <input id="rd-name" type="text" minlength="2" maxlength="24" required autocomplete="nickname">
+        <button type="submit">Online gehen</button>
+      </form>
+      <p id="rd-feedback" role="status"></p>
+      <p id="rd-identity"></p>
+      <p id="rd-presence"></p>
+      <ul id="rd-people"></ul>
+      <h2>Online-Rangliste</h2>
+      <p>Siege und Bestwert aus abgeschlossenen Duellen gegen andere Spieler.</p>
+      <div class="rd-table"><table id="rd-ranking">
+        <thead><tr><th>Name</th><th>Siege</th><th>Beste Punkte</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>`;
+  arcade.append(panel);
+  const ui = id => document.getElementById("rd-" + id);
+
+  let ringOpen = false;
+  let enteringRing = false;
+  function showRing() {
+    if (ringOpen) return;
+    enteringRing = true;
+    // Use the original tab handler to pause Meteor and Schwebekurs first.
+    herzTab.click();
+    enteringRing = false;
+    herzPane.hidden = true;
+    herzPane.dispatchEvent(new Event("arcadespielwechsel"));
+    originalTabs.forEach(button => button.setAttribute("aria-pressed", "false"));
+    tab.setAttribute("aria-pressed", "true");
+    panel.hidden = false;
+    ringOpen = true;
+    render();
+  }
+  tab.addEventListener("click", showRing);
+  function closeRing(button) {
+    if (!ringOpen) return;
+    ringOpen = false;
+    panel.hidden = true;
+    tab.setAttribute("aria-pressed", "false");
+    if (button === herzTab) {
+      herzPane.hidden = false;
+      herzTab.setAttribute("aria-pressed", "true");
+      herzPane.dispatchEvent(new Event("arcadespielwechsel"));
+    }
+    render();
+  }
+  originalTabs.forEach(button => button.addEventListener("click", () => {
+    if (!enteringRing) closeRing(button);
+  }));
+  window.addEventListener("hashchange", () => {
+    if (ringOpen) {
+      if (location.hash === "#herzkammern") closeRing(herzTab);
+      else closeRing();
+    }
+  });
+
+  const cells = Array.from({ length: 49 }, (_, index) => {
+    const x = index % 7, y = Math.floor(index / 7);
+    const ring = Math.max(1, Math.abs(x - 3), Math.abs(y - 3));
+    return { index, x, y, ring, label: "ABCDEFG"[x] + (y + 1) };
+  });
+  for (const cell of cells) {
+    cell.neighbors = cells.filter(other => other !== cell &&
+      Math.abs(other.x - cell.x) <= 1 && Math.abs(other.y - cell.y) <= 1
+    ).map(other => other.index);
+  }
+  const marks = ["", "X", "O"];
+  const areaNames = ["", "Grüne Mitte", "Roter Ring", "Blauer Ring"];
+  function legal(board) {
+    const ring = cells.reduce((result, cell) =>
+      board[cell.index] ? result : Math.min(result, cell.ring), 4);
+    return cells.filter(cell => cell.ring === ring && !board[cell.index]);
+  }
+  function score(board, side) {
+    const seen = new Set();
+    let fields = 0, groups = 0, contacts = 0;
+    for (const cell of cells) {
+      if (board[cell.index] !== side) continue;
+      fields++;
+      if (cell.neighbors.some(i => board[i] === 3 - side)) contacts++;
+      if (seen.has(cell.index)) continue;
+      groups++;
+      const queue = [cell.index];
+      seen.add(cell.index);
+      for (let i = 0; i < queue.length; i++) {
+        for (const neighbor of cells[queue[i]].neighbors) {
+          if (board[neighbor] === side && !seen.has(neighbor)) {
+            seen.add(neighbor);
+            queue.push(neighbor);
+          }
+        }
+      }
+    }
+    return 2 * fields - groups - contacts;
+  }
+  function computerChoice(board, difficulty, side) {
+    const candidateList = legal(board);
+    const opponent = 3 - side;
+    const settings = {
+      easy: { search: 0, random: .70, spread: 4 },
+      normal: { search: .5, random: .22, spread: 2 },
+      hard: { search: 1, random: 0, spread: .35 }
+    }[difficulty];
+    const differential = () => score(board, side) - score(board, opponent);
+    if (Math.random() < settings.random) {
+      return candidateList[Math.floor(Math.random() * candidateList.length)].index;
+    }
+    let best = -Infinity, choice;
+    for (const { index, neighbors } of candidateList) {
+      board[index] = side;
+      const immediate = differential();
+      let worstReply = immediate;
+      if (settings.search) {
+        const replies = legal(board);
+        if (replies.length) worstReply = Infinity;
+        for (const reply of replies) {
+          board[reply.index] = opponent;
+          worstReply = Math.min(worstReply, differential());
+          board[reply.index] = 0;
+        }
+      }
+      const future = neighbors.filter(i => !board[i]).length;
+      const value = immediate * (1 - settings.search) + worstReply * settings.search
+        + future * .08 + Math.random() * settings.spread;
+      board[index] = 0;
+      if (value > best) {
+        best = value;
+        choice = index;
+      }
+    }
+    return choice;
+  }
+
+  const emptyBoard = () => Array(49).fill(0);
+  let local = null, match = null, view = "idle", computerTimer, lastCell;
+  let client, profile, snapshot, shownNotice = "";
+  let inFlight = false;
+  const knownKey = "ringduell-online-profile-v1";
+  const readLocal = key => { try { return localStorage.getItem(key); } catch { return null; } };
+  const writeLocal = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
+  const boardButtons = [];
+  const addAxis = label => ui("board").append(element("span", label));
+  addAxis("");
+  for (const letter of "ABCDEFG") addAxis(letter);
+  for (const cell of cells) {
+    if (cell.x === 0) addAxis(cell.y + 1);
+    const button = element("button");
+    button.type = "button";
+    button.dataset.ring = cell.ring;
+    button.addEventListener("click", () => play(cell.index));
+    boardButtons.push(button);
+    ui("board").append(button);
+  }
+
+  const onlineActive = () => match?.status === "active";
+  function soloBusy() {
+    if (local && local.moves < 49) return true;
+    if (ringOpen) return false;
+    if (!meteorPane.hidden) return Boolean(document.getElementById("links")?.disabled === false);
+    if (!flugPane.hidden) return Boolean(document.getElementById("flug-hoch")?.disabled === false);
+    if (!herzPane.hidden) {
+      const root = herzPane.shadowRoot;
+      return root?.getElementById("neu")?.textContent === "Neu starten" &&
+        root?.getElementById("eintrag")?.hidden;
+    }
+    return false;
+  }
+  const busy = () => onlineActive() || soloBusy();
+
+  function render() {
+    const game = view === "computer" ? local : view === "online" ? match : null;
+    const board = game?.board ?? emptyBoard();
+    const finished = game && (game.moves === 49 || game.status === "abandoned");
+    const turn = game?.moves % 2 === 0 ? 1 : 2;
+    const side = view === "computer" ? local?.playerSide : match?.x === profile?.id ? 1 : 2;
+    const legalCells = legal(board);
+    const permitted = new Set(game && !finished && turn === side && !inFlight ?
+      legalCells.map(cell => cell.index) : []);
+    const ring = legalCells[0]?.ring;
+    const opponent = view === "online" ? (side === 1 ? match?.o_name : match?.x_name) : "Computer";
+    ui("start").disabled = onlineActive() || inFlight;
+    ui("level").disabled = onlineActive();
+    ui("leave").hidden = !(view === "online" && onlineActive()) && !(local && local.moves < 49);
+    ui("leave").disabled = inFlight;
+    for (const { index, label, ring: cellRing } of cells) {
+      const button = boardButtons[index];
+      button.disabled = !permitted.has(index);
+      button.textContent = marks[board[index]];
+      button.classList.toggle("rd-locked", !board[index] && cellRing !== ring);
+      button.classList.toggle("rd-last", Boolean(game) && index === lastCell);
+      button.setAttribute("aria-label", label + ", " + (marks[board[index]] || "frei"));
+    }
+    if (!game) {
+      ui("match").textContent = "Wähle den Computer oder lade jemanden ein.";
+      ui("score").textContent = "";
+    } else {
+      const own = score(board, side), other = score(board, 3 - side);
+      ui("score").textContent = `Du (${marks[side]}) ${own} Pkt. · ${opponent} (${marks[3-side]}) ${other} Pkt.`;
+      ui("match").textContent = game.status === "abandoned" ? "Duell beendet." :
+        finished ? (own === other ? "Unentschieden!" : own > other ? "Du gewinnst!" : opponent + " gewinnt.") :
+        `${areaNames[ring]} · ${turn === side ? "Du bist am Zug." : opponent + " ist am Zug."}`;
+    }
+    renderInvites();
+  }
+
+  function startComputer() {
+    if (onlineActive() || inFlight) return;
+    clearTimeout(computerTimer);
+    local = { board: emptyBoard(), moves: 0, playerSide: Math.random() < .5 ? 1 : 2,
+      difficulty: ui("level").value };
+    view = "computer";
+    lastCell = undefined;
+    render();
+    if (local.playerSide === 2) scheduleComputer();
+    refreshSoon();
+  }
+  function scheduleComputer() {
+    computerTimer = setTimeout(() => {
+      if (!local || local.moves >= 49) return;
+      const index = computerChoice(local.board, local.difficulty, 3 - local.playerSide);
+      local.board[index] = 3 - local.playerSide;
+      local.moves++;
+      lastCell = index;
+      render();
+      refreshSoon();
+    }, 280);
+  }
+  function play(index) {
+    if (boardButtons[index].disabled) return;
+    if (view === "online") {
+      mutate("move", { p_id: match.id, p_cell: index });
+      return;
+    }
+    local.board[index] = local.playerSide;
+    local.moves++;
+    lastCell = index;
+    render();
+    if (local.moves < 49) scheduleComputer();
+    else refreshSoon();
+  }
+  ui("start").addEventListener("click", startComputer);
+  ui("leave").addEventListener("click", () => {
+    if (view === "online" && onlineActive()) {
+      if (window.confirm("Möchtest du das Online-Duell abbrechen? Es wird nicht gewertet.")) {
+        mutate("leave", { p_id: match.id });
+      }
+    } else {
+      clearTimeout(computerTimer);
+      local = null;
+      view = "idle";
+      render();
+      refreshSoon();
+    }
+  });
+
+  function addAction(container, label, action, id) {
+    const button = element("button", label);
+    button.type = "button";
+    button.dataset.rdCommand = action;
+    button.dataset.rdId = id;
+    container.append(button);
+  }
+  function renderInvites() {
+    const active = onlineActive();
+    const elsewhere = active && (!ringOpen || view !== "online") && !soloBusy();
+    const invitations = !busy() ? snapshot?.incoming ?? [] : [];
+    const key = JSON.stringify([elsewhere, match?.id, invitations]);
+    if (key === shownNotice) return;
+    shownNotice = key;
+    lobby.replaceChildren();
+    lobby.hidden = !elsewhere && !invitations.length;
+    if (elsewhere) addAction(lobby, "Zum laufenden Online-Duell", "open", match.id);
+    for (const invite of invitations) {
+      const row = element("div");
+      row.className = "rd-bar";
+      row.append(element("p", invite.name + " lädt dich zum Ringduell ein."));
+      addAction(row, "Annehmen", "accept", invite.id);
+      addAction(row, "Ablehnen", "decline", invite.id);
+      lobby.append(row);
+    }
+  }
+
+  function renderLobby() {
+    if (!profile) return;
+    ui("profile").hidden = true;
+    ui("identity").textContent = "Online als " + profile.name;
+    const people = (snapshot.online ?? []).filter(person => person.id !== profile.id);
+    ui("presence").textContent = people.length ? `Weitere Spieler online · ${people.length}` :
+      "Gerade ist niemand sonst für Ringduell angemeldet.";
+    const list = ui("people");
+    list.replaceChildren();
+    for (const person of people) {
+      const li = element("li");
+      li.append(element("span", person.name + (person.busy ? " · spielt " : " ")));
+      addAction(li, "Einladen", "invite", person.id);
+      list.append(li);
+    }
+    const body = ui("ranking").tBodies[0];
+    body.replaceChildren();
+    for (const entry of snapshot.ranking ?? []) {
+      const row = element("tr");
+      for (const value of [entry.name, entry.wins, entry.best]) row.append(element("td", value));
+      const action = element("td");
+      if (entry.online && entry.id !== profile.id) addAction(action, "Einladen", "invite", entry.id);
+      else action.textContent = entry.id === profile.id ? "Du" : "Offline";
+      row.append(action);
+      body.append(row);
+    }
+    if (!body.rows.length) {
+      const row = body.insertRow();
+      const cell = row.insertCell();
+      cell.colSpan = 4;
+      cell.textContent = "Noch keine gewerteten Online-Partien.";
+    }
+  }
+
+  function applyState(data) {
+    snapshot = data;
+    profile = data.profile;
+    if (profile) renderLobby();
+    const next = data.game;
+    const previous = match;
+    if (next?.status === "active" &&
+        (previous?.id !== next.id || previous.status !== "active")) {
+      const wasBusy = busy();
+      match = next;
+      if (!wasBusy) {
+        clearTimeout(computerTimer);
+        local = null;
+        view = "online";
+        showRing();
+      }
+    } else if (next && (next.id === previous?.id || next.status === "active")) {
+      match = next;
+    } else if (!next && previous?.status === "active") {
+      match = { ...previous, status: "abandoned" };
+    }
+    if (next?.id === previous?.id && next?.moves > previous?.moves) {
+      lastCell = next.board.findIndex((value, i) => value !== previous.board[i]);
+    } else if (match?.id !== previous?.id) lastCell = undefined;
+    render();
+  }
+
+  let connection;
+  function getClient() {
+    if (!connection) connection = (async () => {
+      if (typeof SUPABASE_URL !== "string" || typeof SUPABASE_KEY !== "string") {
+        throw new Error("Supabase-Daten fehlen in der index.html.");
+      }
+      const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+      return createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: "ringduell-session-v1" } });
+    })().catch(error => { connection = null; throw error; });
+    return connection;
+  }
+
+  async function query(action, params = {}) {
+    const { data, error } = await client.rpc("ringduell", {
+      p_action: action, p_busy: Boolean(busy()), ...params
+    }).abortSignal(AbortSignal.timeout(8000));
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  function notice(text) {
+    ui("feedback").textContent = text;
+    let bubble = lobby.querySelector(".rd-message");
+    if (!ringOpen && !lobby.hidden && text) {
+      if (!bubble) {
+        bubble = element("p");
+        bubble.className = "rd-message";
+        bubble.setAttribute("role", "status");
+        lobby.append(bubble);
+      }
+      bubble.textContent = text;
+    }
+  }
+  function readable(error) {
+    const message = error?.message ?? "";
+    if (/anonymous sign.ins are disabled/i.test(message)) return "Aktiviere anonyme Anmeldungen in Supabase.";
+    if (/could not find.*function|schema cache/i.test(message)) return "Führe zuerst den Ringduell-SQL-Block in Supabase aus.";
+    return message || "Die Verbindung konnte nicht hergestellt werden.";
+  }
+  async function mutate(action, params) {
+    if (!client || !profile || inFlight) return;
+    inFlight = true;
+    render();
+    try {
+      const data = await query(action, params);
+      applyState(data);
+      notice(action === "invite" ? "Einladung verschickt." : "");
+    } catch (error) {
+      notice(readable(error));
+    } finally {
+      inFlight = false;
+      render();
+    }
+  }
+
+  async function login(name) {
+    client = await getClient();
+    const existing = await client.auth.getSession();
+    if (existing.error) throw existing.error;
+    if (!existing.data.session && name) {
+      const { error } = await client.auth.signInAnonymously();
+      if (error) throw error;
+    }
+    if (!existing.data.session && !name) return;
+    const data = await query(name ? "profile" : "state", name ? { p_name: name } : {});
+    applyState(data);
+    if (profile) writeLocal(knownKey, "yes");
+  }
+  ui("profile").addEventListener("submit", async event => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector("button");
+    button.disabled = true;
+    try {
+      await login(ui("name").value.trim());
+      notice("");
+    } catch (error) {
+      notice(readable(error));
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  function handleAction(event) {
+    const button = event.target.closest("button[data-rd-command]");
+    if (!button) return;
+    const { rdCommand: action, rdId: id } = button.dataset;
+    if (action === "open") {
+      clearTimeout(computerTimer);
+      local = null;
+      view = "online";
+      showRing();
+      render();
+    } else {
+      if (action === "accept" && busy()) return;
+      mutate(action, { p_id: id });
+    }
+  }
+  lobby.addEventListener("click", handleAction);
+  panel.addEventListener("click", handleAction);
+
+  let refreshTimer;
+  function refreshSoon() {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(refresh, 200);
+  }
+  async function refresh() {
+    clearTimeout(refreshTimer);
+    if (client && profile && !document.hidden && !inFlight) {
+      inFlight = true;
+      try {
+        applyState(await query("state"));
+        if (ui("feedback").dataset.offline === "1") {
+          delete ui("feedback").dataset.offline;
+          notice("");
+        }
+      } catch (error) {
+        ui("feedback").dataset.offline = "1";
+        notice("Online-Verbindung unterbrochen. Neuer Versuch folgt.");
+      } finally {
+        inFlight = false;
+        render();
+      }
+    }
+    refreshTimer = setTimeout(refresh, onlineActive() ? 1600 : ringOpen ? 3500 : 5500);
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshSoon();
+  });
+  // Refresh presence and invitations at the moment an existing arcade round ends.
+  let previousBusy = String([busy(), soloBusy()]);
+  setInterval(() => {
+    const currentBusy = String([busy(), soloBusy()]);
+    if (currentBusy === previousBusy) return;
+    previousBusy = currentBusy;
+    renderInvites();
+    refreshSoon();
+  }, 500);
+  if (readLocal(knownKey)) login().catch(error => notice(readable(error))).finally(refresh);
+  else refresh();
+  render();
+})();
+</script>
+
+<!-- Ende Ringduell -->
 </html>
