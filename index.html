@@ -1996,4 +1996,392 @@ setInterval(updateMonsters,60);
 </script>
 
 <!-- Ende Ringduell -->
+<!-- Herzkammern Koop: gesamten Block direkt vor </html> einfügen. -->
+<style>
+  #arcade:has(#hk-koop:not([hidden])) { width: min(100% - 2rem, 49rem); }
+  #hk-koop[hidden], #hk-koop [hidden], #herzkammern-panel[hidden] { display: none !important; }
+  #arcade:has(#hk-koop:not([hidden])[data-playing]) #rd-einladungen { display:none !important; }
+  #hk-koop { color: #e9f2ea; }
+  #hk-koop h1 { margin: 0 0 .65rem; }
+  #hk-koop p { margin: .45rem 0; }
+  #hk-koop label { display: block; margin-top: .55rem; }
+  .hk-group { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; margin:.5rem 0; }
+  .hk-group input { flex: 1 1 9rem; width:auto; margin:0; }
+  #hk-info { min-height:1.4em; color:#ffe8a5; overflow-wrap:anywhere; }
+  #hk-people { display:grid; grid-template-columns:repeat(auto-fit,minmax(9rem,1fr)); gap:.4rem; margin:.65rem 0; }
+  .hk-player { border:1px solid #465d56; padding:.4rem .55rem; border-radius:.4rem; overflow-wrap:anywhere; }
+  .hk-player b { color:var(--role); }
+  #hk-board {
+    display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); width:min(100%,32rem);
+    margin:.6rem auto; gap:2px; background:#090f14; padding:3px; border-radius:.35rem;
+  }
+  #hk-board span {
+    display:grid; place-items:center; min-width:0; aspect-ratio:1;
+    background:#263438; color:#eef5f7; font-size:clamp(.65rem,3vw,1.1rem);
+    font-weight:800; border-radius:2px;
+  }
+  #hk-board .wall { background:#0b1419; }
+  #hk-board .chest { background:#85521d; }
+  #hk-board .gate { background:#5e397c; }
+  #hk-board .open { background:#8854cb; }
+  #hk-board .trap { background:#a75c31; }
+  #hk-board .foe { background:#a33847; }
+  #hk-board .heavy { background:#6853a9; }
+  #hk-board .breaker { background:#a74318; }
+  #hk-board .hero { color:#10201a; background:var(--role); }
+  #hk-board .mine { outline:2px solid white; outline-offset:-2px; }
+  [data-person="0"] { --role:#86e0a0; }
+  [data-person="1"] { --role:#81d5ff; }
+  [data-person="2"] { --role:#ffd286; }
+  [data-person="3"] { --role:#f5a9e8; }
+  .hk-controls {
+    display:grid; grid-template-columns:repeat(3,minmax(3rem,4rem)); gap:.3rem;
+    justify-content:center; margin:.6rem auto;
+  }
+  .hk-controls button { padding:.35rem; touch-action:manipulation; }
+  .hk-controls [data-direction="up"] { grid-column:2; }
+  .hk-controls [data-direction="left"] { grid-column:1; }
+  #hk-stats, #hk-gear { text-align:center; }
+  #hk-rules p { color:#cad6da; }
+</style>
+<script>
+(() => {
+  "use strict";
+  const nav = document.getElementById("spielwahl");
+  const arcade = document.getElementById("arcade");
+  const solo = document.getElementById("herzkammern-panel");
+  const soloTab = [...(nav?.querySelectorAll("button") ?? [])]
+    .find(button => button.textContent.trim() === "Herzkammern");
+  if (!nav || !arcade || !solo || !soloTab || document.getElementById("hk-koop")) return;
+
+  const tab = document.createElement("button");
+  tab.type = "button";
+  tab.textContent = "Herzkammern Koop";
+  tab.setAttribute("aria-pressed", "false");
+  nav.append(tab);
+  const panel = document.createElement("div");
+  panel.id = "hk-koop";
+  panel.hidden = true;
+  panel.innerHTML = `
+    <h1>Herzkammern Koop</h1>
+    <div id="hk-entry">
+      <p>Erstelle einen Raum oder tritt mit einem Code bei. Spielt zusammen mit 2–4 Personen.</p>
+      <label for="hk-name">Spitzname</label>
+      <input id="hk-name" maxlength="18" autocomplete="nickname" placeholder="Dein Name">
+      <button id="hk-create" type="button">Raum erstellen</button>
+      <form id="hk-join">
+        <label for="hk-code">Raumcode</label>
+        <div class="hk-group">
+          <input id="hk-code" maxlength="8" autocomplete="off" autocapitalize="characters" required placeholder="8 Zeichen">
+          <button type="submit">Beitreten</button>
+        </div>
+      </form>
+    </div>
+    <div id="hk-room" hidden>
+      <div class="hk-group">
+        <strong>Raum <span id="hk-roomcode"></span></strong>
+        <button id="hk-copy" type="button">Code kopieren</button>
+        <button id="hk-leave" type="button">Raum verlassen</button>
+      </div>
+      <div id="hk-people" aria-label="Spieler im Raum"></div>
+      <p id="hk-stage"></p>
+      <button id="hk-start" type="button" hidden>Runde starten</button>
+      <div id="hk-dungeon" hidden>
+        <p id="hk-stats"></p>
+        <div id="hk-board" role="img" aria-label="Dungeon, 10 mal 10 Felder"></div>
+        <div class="hk-controls" aria-label="Bewegung">
+          <button type="button" data-direction="up" aria-label="Nach oben">↑</button>
+          <button type="button" data-direction="left" aria-label="Nach links">←</button>
+          <button type="button" data-direction="down" aria-label="Nach unten">↓</button>
+          <button type="button" data-direction="right" aria-label="Nach rechts">→</button>
+        </div>
+        <div class="hk-group" id="hk-combat">
+          <button id="hk-attack" type="button">Angreifen</button>
+          <button id="hk-heal" type="button">Heiltrank</button>
+        </div>
+        <div class="hk-group" id="hk-loot" hidden>
+          <strong>Beute wählen</strong>
+          <button type="button" data-loot="sword">Schwert</button>
+          <button type="button" data-loot="bow">Bogen</button>
+          <button type="button" data-loot="spear">Speer</button>
+          <button type="button" data-loot="shield">Schild</button>
+          <button type="button" data-loot="potion">Heiltrank</button>
+        </div>
+        <details id="hk-rules">
+          <summary>Steuerung und Regeln</summary>
+          <p>WASD oder Pfeiltasten zum Laufen, Leertaste zum Angriff und H für einen Heiltrank. Du greifst den nächsten Gegner in Reichweite an. Bogen und Speer treffen entlang gerader Linien.</p>
+          <p>Jede Person darf pro Level einmal aus der Kiste wählen. Orangefarbene Felder mit ! sind Fallen. Sind alle Monster besiegt, gehen alle lebenden, verbundenen Spieler zum Tor. Gefallene Mitspieler stehen im nächsten Level wieder auf.</p>
+        </details>
+      </div>
+    </div>
+    <p id="hk-info" role="status"></p>`;
+  arcade.append(panel);
+  const $ = id => document.getElementById("hk-" + id);
+  const nameKey = "herzkammern-koop-name";
+  const roomKey = "herzkammern-koop-room";
+  function saved(key, value) {
+    try {
+      if (value === undefined) return localStorage.getItem(key);
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    } catch {}
+  }
+  $("name").value = saved(nameKey) || "";
+  let active = false, switching = false, room, pending = false, queued, timer;
+  let clientPromise, lastBoard = "", lastPeople = "", connectionError = false;
+  const tiles = Array.from({ length: 100 }, () => {
+    const tile = document.createElement("span");
+    $("board").append(tile);
+    return tile;
+  });
+  const weapons = { fist: "Faust", sword: "Schwert", bow: "Bogen", spear: "Speer" };
+  const info = message => { $("info").textContent = message; };
+  const setText = (element, text) => {
+    if (element.textContent !== text) element.textContent = text;
+  };
+  function closeCoop(toSolo) {
+    if (!active) return;
+    active = false;
+    panel.hidden = true;
+    tab.setAttribute("aria-pressed", "false");
+    if (toSolo) {
+      solo.hidden = false;
+      soloTab.setAttribute("aria-pressed", "true");
+      solo.dispatchEvent(new Event("arcadespielwechsel"));
+    }
+    schedule();
+  }
+  nav.addEventListener("click", event => {
+    if (!switching && active && event.target.closest("button") !== tab &&
+        event.target.closest("button")) closeCoop(event.target.closest("button") === soloTab);
+  }, true);
+  window.addEventListener("hashchange", () => {
+    if (active) closeCoop(location.hash === "#herzkammern");
+  });
+  // Other add-ons can open a different game by pressing one of the original tabs.
+  tab.addEventListener("click", () => {
+    if (active) return;
+    switching = true;
+    soloTab.click();
+    switching = false;
+    solo.hidden = true;
+    solo.dispatchEvent(new Event("arcadespielwechsel"));
+    nav.querySelectorAll("button").forEach(button =>
+      button.setAttribute("aria-pressed", String(button === tab)));
+    active = true;
+    panel.hidden = false;
+    render();
+    if (!room && saved(roomKey)) request("state", { p_code: saved(roomKey) });
+    else schedule(0);
+  });
+
+  function distance(a,b) {
+    return Math.abs(a%10-b%10) + Math.abs(Math.floor(a/10)-Math.floor(b/10));
+  }
+  const hearts = n => String(n / 2).replace(".", ",");
+  function render() {
+    const playing = room?.phase === "playing", lost = room?.phase === "lost";
+    const me = room?.players[room.you.slot];
+    panel.toggleAttribute("data-playing", Boolean(playing));
+    $("entry").hidden = Boolean(room);
+    $("room").hidden = !room;
+    $("dungeon").hidden = !playing && !lost;
+    if (!room || !me) return;
+    setText($("roomcode"), room.code);
+    const start = $("start");
+    start.hidden = !room.you.host || playing;
+    start.disabled = room.players.length < 2 || pending;
+    start.textContent = lost ? "Neue Runde starten" : "Runde starten";
+    setText($("stage"), lost ? `Die Gruppe ist gefallen. Endstand: ${room.score} Punkte.` :
+      !playing ? `Warteraum · ${room.players.length}/4 Personen` :
+      !me.hp ? "Du bist gefallen. Deine Gruppe kann dich im nächsten Level zurückholen." :
+        room.monsters.length ? `Level ${room.level} · ${room.monsters.length} Gegner übrig` :
+          `Tor offen · ${room.players.filter(player => player.hp && player.online && player.ready).length}/${room.players.filter(player => player.hp && player.online).length} am Tor`);
+    const peopleKey = JSON.stringify([room.you.slot, room.players.map(p => [p.name,p.hp,p.max_hp,p.online,p.host])]);
+    if (peopleKey !== lastPeople) {
+      lastPeople = peopleKey;
+      const people = room.players.map((p,i) => {
+        const card = document.createElement("div");
+        card.className = "hk-player";
+        card.dataset.person = i;
+        const who = document.createElement("b");
+        who.textContent = `${i+1} · ${p.name}${i===room.you.slot?" (du)":""}`;
+        const hp = document.createElement("div");
+        hp.textContent = `${hearts(p.hp)}/${hearts(p.max_hp)} ♥${p.host?" · Host":""}${p.online?"":" · offline"}`;
+        card.append(who,hp);
+        return card;
+      });
+      $("people").replaceChildren(...people);
+    }
+    if (!playing && !lost) return;
+    setText($("stats"), `${room.score} Teampunkte · ${weapons[me.weapon]}${me.shield?" & Schild":""} · ${me.potions} Heiltränke`);
+    panel.querySelectorAll("[data-direction], #hk-attack").forEach(button => {
+      button.disabled = !playing || !me.hp;
+    });
+    $("heal").disabled = !playing || !me.hp || !me.potions || me.hp >= me.max_hp;
+    $("loot").hidden = !playing || !me.hp || me.looted || distance(me.pos,room.chest)>1;
+    panel.querySelector('[data-loot="spear"]').hidden = room.level < 4;
+    panel.querySelector('[data-loot="shield"]').disabled = me.shield;
+    panel.querySelector('[data-loot="potion"]').disabled = me.potions >= 3;
+    const boardKey = JSON.stringify([room.level,room.walls,room.traps,room.gate,room.chest,
+      room.monsters.map(m => [m.pos,m.hp,m.kind]), room.players.map(p=>[p.pos,Boolean(p.hp)]),room.you.slot]);
+    if (boardKey === lastBoard) return;
+    lastBoard = boardKey;
+    const walls = new Set(room.walls), traps = new Set(room.traps);
+    const monsters = new Map(room.monsters.map(m => [m.pos,m]));
+    const heroes = new Map();
+    room.players.forEach((p,i) => {
+      if (p.hp && (i === room.you.slot || !heroes.has(p.pos))) heroes.set(p.pos,i);
+    });
+    tiles.forEach((tile,i) => {
+      const enemy = monsters.get(i), hero = heroes.get(i);
+      let kind = "", mark = "", label = "Gang";
+      if (hero !== undefined) {
+        kind = hero===room.you.slot ? "hero mine" : "hero";
+        mark = String(hero+1); label = room.players[hero].name;
+        tile.dataset.person = hero;
+      } else {
+        delete tile.dataset.person;
+        if (walls.has(i)) { kind="wall"; label="Wand"; }
+        else if (enemy) {
+          kind = ["","foe","heavy","breaker"][enemy.kind];
+          mark = hearts(enemy.hp); label = `Gegner, ${mark} Herzen`;
+        } else if (i === room.chest) { kind="chest"; mark="▣"; label="Ausrüstungskiste"; }
+        else if (i === room.gate) { kind=room.monsters.length?"gate":"open"; mark="◇"; label="Tor"; }
+        else if (traps.has(i)) { kind="trap"; mark="!"; label="Falle"; }
+      }
+      tile.className = kind;
+      tile.textContent = mark;
+      tile.title = label;
+    });
+  }
+
+  function connect() {
+    if (!clientPromise) clientPromise = (async () => {
+      if (typeof SUPABASE_URL !== "string" || typeof SUPABASE_KEY !== "string") {
+        throw new Error("Die Supabase-Daten fehlen in deiner index.html.");
+      }
+      const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+      const client = createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:"herzkammern-koop-session-v1"}});
+      const result = await client.auth.getSession();
+      if (result.error) throw result.error;
+      if (!result.data.session) {
+        const { error } = await client.auth.signInAnonymously();
+        if (error) throw error;
+      }
+      return client;
+    })().catch(error => { clientPromise=null; throw error; });
+    return clientPromise;
+  }
+  function schedule(delay) {
+    clearTimeout(timer);
+    if (!room || !active || document.hidden) return;
+    timer = setTimeout(() => request("state"), delay ?? (room.phase==="playing" ? 700 : 1800));
+  }
+  async function request(action, params={}) {
+    if (pending) {
+      if (action !== "state") queued = { action, params };
+      return;
+    }
+    clearTimeout(timer);
+    pending = true;
+    try {
+      const client = await connect();
+      const { data, error } = await client.rpc("herzkammern_koop", {
+        p_action:action, p_code:room?.code ?? null, ...params
+      }).abortSignal(AbortSignal.timeout(8500));
+      if (error) throw error;
+      if (data.left) {
+        room = null;
+        queued = null;
+        saved(roomKey,null);
+        info("");
+      } else {
+        room = data;
+        saved(roomKey,room.code);
+        if (action === "create" || action === "join") saved(nameKey,$("name").value.trim());
+        if (action !== "state" || connectionError) info("");
+      }
+      connectionError = false;
+    } catch (error) {
+      let message = error.message || "Verbindung fehlgeschlagen.";
+      if (/abgelaufen|gehörst nicht/.test(message) && ["state","leave"].includes(action)) {
+        room = null;
+        queued = null;
+        saved(roomKey,null);
+      }
+      if (/anonymous sign.ins are disabled/i.test(message)) {
+        message = "Aktiviere zuerst anonyme Anmeldungen in Supabase.";
+      } else if (/could not find.*function|schema cache/i.test(message)) {
+        message = "Führe zuerst den Koop-SQL-Code in Supabase aus.";
+      } else if (action === "state" && room) {
+        connectionError = true;
+        message = "Verbindung unterbrochen. Neuer Versuch folgt.";
+      }
+      info(message);
+    } finally {
+      pending = false;
+      render();
+      const next = queued;
+      queued = null;
+      if (next && (room || ["create","join"].includes(next.action))) request(next.action,next.params);
+      else schedule();
+    }
+  }
+  function enter(action, params) {
+    if (pending) return;
+    const p_name = $("name").value.trim();
+    if (p_name.length<2) { info("Schreib zuerst deinen Spitznamen hinein."); return; }
+    info("Verbindung wird aufgebaut …");
+    request(action,{p_name,...params});
+  }
+  $("create").onclick = () => enter("create",{});
+  $("join").onsubmit = event => {
+    event.preventDefault();
+    enter("join",{p_code:$("code").value.trim().toUpperCase()});
+  };
+  $("start").onclick = () => {
+    if (room) request(room.phase==="lost"?"restart":"start");
+  };
+  $("leave").onclick = () => {
+    if (room?.phase==="playing" && !confirm("Möchtest du diesen Raum verlassen?")) return;
+    if (room) request("leave");
+  };
+  $("copy").onclick = async () => {
+    if (!room) return;
+    try { await navigator.clipboard.writeText(room.code); info("Raumcode kopiert."); }
+    catch { if (room) info("Teile diesen Raumcode: " + room.code); }
+  };
+  function act(action, p_value) {
+    if (active && room?.phase==="playing" && room.players[room.you.slot]?.hp) {
+      if (queued?.action === "leave") return;
+      request(action,{p_value});
+    }
+  }
+  panel.querySelectorAll("[data-direction]").forEach(button =>
+    button.onclick = () => act("move",button.dataset.direction));
+  panel.querySelectorAll("[data-loot]").forEach(button =>
+    button.onclick = () => act("loot",button.dataset.loot));
+  $("attack").onclick = () => act("attack",null);
+  $("heal").onclick = () => act("heal",null);
+  const directions = {
+    arrowup:"up",w:"up",arrowdown:"down",s:"down",arrowleft:"left",a:"left",arrowright:"right",d:"right"
+  };
+  document.addEventListener("keydown", event => {
+    if (!active || room?.phase!=="playing" || event.altKey || event.metaKey || event.ctrlKey ||
+      event.target.closest("input,textarea,select,[contenteditable]")) return;
+    const key = event.key.toLowerCase(), direction = directions[key];
+    if (direction) {
+      event.preventDefault();
+      act("move",direction);
+    } else if (key===" " || key==="h") {
+      event.preventDefault();
+      if (!event.repeat) act(key===" "?"attack":"heal",null);
+    }
+  });
+  document.addEventListener("visibilitychange", () => schedule(0));
+})();
+</script>
+<!-- Ende Herzkammern Koop -->
+
 </html>
